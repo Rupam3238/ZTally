@@ -123,6 +123,20 @@
     "topApplications": "Aplicativos mais usados",
     "title": "Relatório da sessão de foco"
   },
+  "focusHistory": {
+    "minimumLength": "Duração mínima da sessão",
+    "minimumLengthAria": "Duração mínima da sessão em minutos",
+    "minutes": "min",
+    "noMatchingSessions": "Nenhuma sessão atende a esta duração."
+  },
+  "switchHistory": {
+    "close": "Fechar",
+    "empty": "Nenhuma troca de aplicativo foi registrada.",
+    "error": "Não foi possível carregar o histórico de trocas de aplicativo.",
+    "loading": "Carregando histórico de trocas de aplicativo…",
+    "open": "Abrir histórico de trocas de aplicativo",
+    "title": "Histórico de trocas de aplicativo"
+  },
   "goals": {
     "added": "Meta adicionada. O ZTally avisa quando você estiver perto.",
     "composer": {

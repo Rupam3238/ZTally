@@ -123,6 +123,20 @@
     "topApplications": "Am häufigsten verwendete Apps",
     "title": "Bericht zur Fokussitzung"
   },
+  "focusHistory": {
+    "minimumLength": "Mindestdauer der Sitzung",
+    "minimumLengthAria": "Mindestdauer der Sitzung in Minuten",
+    "minutes": "Min.",
+    "noMatchingSessions": "Keine Sitzung erfüllt diese Mindestdauer."
+  },
+  "switchHistory": {
+    "close": "Schließen",
+    "empty": "Keine App-Wechsel aufgezeichnet.",
+    "error": "Der Verlauf der App-Wechsel konnte nicht geladen werden.",
+    "loading": "App-Wechsel werden geladen…",
+    "open": "Verlauf der App-Wechsel öffnen",
+    "title": "Verlauf der App-Wechsel"
+  },
   "goals": {
     "added": "Ziel hinzugefügt. ZTally meldet sich, wenn du nah dran bist.",
     "composer": {

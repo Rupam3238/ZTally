@@ -7,6 +7,7 @@ use crate::report::{self, Ctx, DayView, GoalProgress, RangeView};
 use crate::tracker::{BackendInfo, Current};
 use crate::AppState;
 use serde::Serialize;
+use std::collections::HashMap;
 use tauri::{AppHandle, State};
 
 type R<T> = Result<T, String>;
@@ -17,6 +18,18 @@ pub struct FocusSessionReport {
     session: crate::db::FocusRecord,
     reconstruction: crate::reconstruct::ReconstructedSession,
     reliability: crate::reconstruct::ReliabilityAssessment,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwitchHistoryEntry {
+    from_app: String,
+    from_display: String,
+    to_app: String,
+    to_display: String,
+    at_ms: i64,
+    uncertain: bool,
+    gap_ms: i64,
 }
 
 #[derive(Serialize)]
@@ -70,7 +83,9 @@ fn day(st: State<AppState>, start: i64, end: i64) -> R<DayView> {
     let calls = st.db.lock().calls_in(start, end)?;
     let cats = st.db.lock().categories()?;
     let c = st.classifier();
-    Ok(report::day_view(&Ctx::new(&c, &cats), &rows, &audio, &calls, start, end))
+    let mut view = report::day_view(&Ctx::new(&c, &cats), &rows, &audio, &calls, start, end);
+    set_switch_metrics(&mut view.summary, &rows, &[(start, end)]);
+    Ok(view)
 }
 
 
@@ -85,6 +100,23 @@ fn runs(days: &[(i64, i64)]) -> Vec<(i64, i64)> {
         }
     }
     out
+}
+
+fn switch_metrics(rows: &[crate::db::SpanRow], intervals: &[(i64, i64)]) -> (u32, i64) {
+    let mut switches = 0u32;
+    let mut eligible_ms = 0i64;
+    for (start, end) in runs(intervals) {
+        let reconstruction = crate::reconstruct::reconstruct_session(start, end, rows, 0);
+        switches = switches.saturating_add(
+            reconstruction.transitions.iter().filter(|transition| !transition.uncertain).count() as u32,
+        );
+        eligible_ms += reconstruction.eligible_observed_ms;
+    }
+    (switches, eligible_ms)
+}
+
+fn set_switch_metrics(summary: &mut report::Summary, rows: &[crate::db::SpanRow], intervals: &[(i64, i64)]) {
+    (summary.switches, summary.switch_eligible_ms) = switch_metrics(rows, intervals);
 }
 
 type Rows = (Vec<crate::db::SpanRow>, Vec<crate::db::SpanRow>, Vec<crate::db::SpanRow>);
@@ -110,7 +142,46 @@ fn range(st: State<AppState>, days: Vec<(i64, i64)>) -> R<RangeView> {
     let (rows, audio, calls) = rows_for(&st, &days)?;
     let cats = st.db.lock().categories()?;
     let c = st.classifier();
-    Ok(report::range_view(&Ctx::new(&c, &cats), &rows, &audio, &calls, &days))
+    let mut view = report::range_view(&Ctx::new(&c, &cats), &rows, &audio, &calls, &days);
+    set_switch_metrics(&mut view.summary, &rows, &days);
+    Ok(view)
+}
+
+#[tauri::command]
+fn switch_history(st: State<AppState>) -> R<Vec<SwitchHistoryEntry>> {
+    st.engine.lock().flush();
+    let spans = st.db.lock().all_spans()?;
+    let Some(start_ms) = spans.iter().map(|span| span.start).min() else {
+        return Ok(Vec::new());
+    };
+    let Some(end_ms) = spans.iter().map(|span| span.end).max() else {
+        return Ok(Vec::new());
+    };
+    if end_ms <= start_ms {
+        return Ok(Vec::new());
+    }
+
+    let reconstruction = crate::reconstruct::reconstruct_session(start_ms, end_ms, &spans, 0);
+    let mut labels = HashMap::new();
+    for observation in &reconstruction.observations {
+        if !observation.afk && !observation.display.trim().is_empty() {
+            labels.entry(observation.app_key.clone()).or_insert_with(|| observation.display.trim().to_string());
+        }
+    }
+    Ok(reconstruction
+        .transitions
+        .into_iter()
+        .filter(|transition| !transition.uncertain)
+        .map(|transition| SwitchHistoryEntry {
+            from_display: labels.get(&transition.from_app).cloned().unwrap_or_else(|| transition.from_app.clone()),
+            to_display: labels.get(&transition.to_app).cloned().unwrap_or_else(|| transition.to_app.clone()),
+            from_app: transition.from_app,
+            to_app: transition.to_app,
+            at_ms: transition.at_ms,
+            uncertain: transition.uncertain,
+            gap_ms: transition.gap_ms,
+        })
+        .collect())
 }
 
 
@@ -394,6 +465,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         status,
         day,
         range,
+        switch_history,
         categories,
         save_category,
         delete_category,
@@ -433,9 +505,47 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
 
 #[cfg(test)]
 mod tests {
+    use crate::db::SpanRow;
+
+    fn span(start: i64, end: i64, app_key: &str, afk: bool) -> SpanRow {
+        SpanRow {
+            start,
+            end,
+            app_key: app_key.to_string(),
+            display: app_key.to_string(),
+            title: String::new(),
+            domain: None,
+            afk,
+        }
+    }
+
     #[test]
     fn runs_merge_touching_days_only() {
         assert_eq!(super::runs(&[(20, 30), (0, 10), (10, 20), (50, 60)]), vec![(0, 30), (50, 60)]);
         assert_eq!(super::runs(&[]), vec![]);
+    }
+
+    #[test]
+    fn switch_metrics_exclude_shell_and_unknown_gap_transitions() {
+        let rows = vec![
+            span(0, 2_000, "firefox", false),
+            span(1_000, 2_000, "plasmashell", false),
+            span(2_000, 3_000, "code", false),
+            span(5_000, 6_000, "dolphin", false),
+        ];
+        let (switches, eligible_ms) = super::switch_metrics(&rows, &[(0, 6_000)]);
+        assert_eq!(switches, 1);
+        assert_eq!(eligible_ms, 3_000);
+    }
+
+    #[test]
+    fn switch_metrics_do_not_bridge_separate_reporting_intervals() {
+        let rows = vec![
+            span(0, 1_000, "firefox", false),
+            span(5_000, 6_000, "code", false),
+        ];
+        let (switches, eligible_ms) = super::switch_metrics(&rows, &[(0, 1_000), (5_000, 6_000)]);
+        assert_eq!(switches, 0);
+        assert_eq!(eligible_ms, 2_000);
     }
 }

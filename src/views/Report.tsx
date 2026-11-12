@@ -61,8 +61,8 @@ function observations(cur: RangeView, prev: RangeView | null, cats: Category[], 
   if (hours[peak] > 0) out.push(t("receipt.obs.busiestHour", { from: `${String(peak).padStart(2, "0")}:00`, to: `${String(peak + 1).padStart(2, "0")}:00` }));
   const late = cur.days.filter((d) => (d.hours[23]?.activeMs ?? 0) > 10 * 60_000).length;
   if (late >= 2) out.push(t("receipt.obs.lateNights", { count: late }));
-  if (s.switches > 0 && s.activeMs > 0) {
-    const perHour = s.switches / (s.activeMs / 3_600_000);
+  if (s.switches > 0 && s.switchEligibleMs > 0) {
+    const perHour = s.switches / (s.switchEligibleMs / 3_600_000);
     if (perHour > 40) out.push(t("receipt.obs.switching", { n: Math.round(perHour) }));
   }
   return out.slice(0, 2);

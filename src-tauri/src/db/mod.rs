@@ -266,6 +266,31 @@ impl Db {
         rows.collect::<Result<Vec<_>, _>>().map_err(e)
     }
 
+    pub fn all_spans(&self) -> DbResult<Vec<SpanRow>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached(
+                "SELECT s.start_ms, s.end_ms, COALESCE(a.key, ''), COALESCE(a.display_name, ''), s.title, s.domain, s.afk
+                 FROM spans s LEFT JOIN apps a ON a.id = s.app_id
+                 ORDER BY s.start_ms",
+            )
+            .map_err(e)?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(SpanRow {
+                    start: r.get(0)?,
+                    end: r.get(1)?,
+                    app_key: r.get(2)?,
+                    display: r.get(3)?,
+                    title: r.get(4)?,
+                    domain: r.get(5)?,
+                    afk: r.get(6)?,
+                })
+            })
+            .map_err(e)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(e)
+    }
+
     pub fn delete_spans(&self, start: i64, end: i64, app_key: Option<&str>) -> DbResult<usize> {
         match app_key {
             Some(k) => self

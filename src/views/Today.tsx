@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { BackgroundRow } from "../components/BackgroundRow";
 import { Dial } from "../components/Dial";
+import { SwitchHistoryModal } from "../components/SwitchHistoryModal";
 import { CatDot, CatPill, Empty, Glyph } from "../components/bits";
 import { Icon } from "../components/Icon";
 import { useActions, type Target } from "../lib/actions";
@@ -24,6 +25,7 @@ export function Today() {
   const { assign, openMenu, menuEl } = useActions();
   const { start: startDrag, ghost, overCat: dropCat } = useItemDrag(assign);
   const [hoverCat, setHoverCat] = useState<number | null>(null);
+  const [showSwitchHistory, setShowSwitchHistory] = useState(false);
   const [, setTick] = useState(0);
 
 
@@ -120,7 +122,21 @@ export function Today() {
 
         <div className="day-facts">
           <Fact label={t("facts.streak")} value={s.focus ? fmtDur(s.focus.ms) : t("facts.none")} sub={s.focus ? t("date.range", { from: fmtClock(s.focus.start), to: fmtClock(s.focus.end) }) : t("facts.streakHint")} accent />
-          <Fact label={t("facts.switches")} value={String(s.switches)} sub={s.activeMs > 0 ? t("facts.perHour", { n: (s.switches / Math.max(1, s.activeMs / 3_600_000)).toFixed(0) }) : t("facts.switchesHint")} />
+          <Fact
+            label={t("facts.switches")}
+            value={String(s.switches)}
+            sub={s.switchEligibleMs > 0 ? t("facts.perHour", { n: (s.switches / (s.switchEligibleMs / 3_600_000)).toFixed(0) }) : t("facts.switchesHint")}
+            action={(
+              <button
+                className="icon-btn fact-action"
+                aria-label={t("switchHistory.open")}
+                title={t("switchHistory.open")}
+                onClick={() => setShowSwitchHistory(true)}
+              >
+                <Icon name="report" size={14} />
+              </button>
+            )}
+          />
           <Fact label={t("facts.away")} value={fmtDur(s.afkMs)} sub={t("facts.awayHint")} />
           <Fact
             label={t("facts.background")}
@@ -134,6 +150,7 @@ export function Today() {
       <Ledger day={day} onMenu={openMenu} onDragStart={startDrag} />
       {menuEl}
       {ghost}
+      {showSwitchHistory && <SwitchHistoryModal onClose={() => setShowSwitchHistory(false)} />}
     </div>
   );
 }
@@ -201,11 +218,14 @@ function highlightLabel(day: DayView, key: string): string {
   return item ? fmtDur(item.ms) : "0m";
 }
 
-function Fact({ label, value, sub, accent }: { label: string; value: string; sub: string; accent?: boolean }) {
+function Fact({ label, value, sub, accent, action }: { label: string; value: string; sub: string; accent?: boolean; action?: React.ReactNode }) {
   return (
     <div className={`fact ${accent ? "accent" : ""}`}>
       <div className="fact-label">{label}</div>
-      <div className="fact-value">{value}</div>
+      <div className={`fact-value-row ${action ? "has-action" : ""}`}>
+        <div className="fact-value">{value}</div>
+        {action}
+      </div>
       <div className="fact-sub">{sub}</div>
     </div>
   );

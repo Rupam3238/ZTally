@@ -2561,6 +2561,95 @@ select optgroup {
   font-size: 18px;
 }
 
+.fact-value-row.has-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.fact-value-row.has-action .fact-value {
+  min-width: 0;
+}
+
+.fact-action {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+
+.focus-history,
+.focus-history * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.focus-history-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.focus-history-filter-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.focus-history-filter input {
+  width: 64px;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.focus-report .fr-score b {
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.switch-history-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  min-height: 0;
+}
+
+.switch-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.switch-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.switch-history-apps {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.switch-history-time {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 @media (max-width: 820px) {
   .day-facts {
     grid-template-columns: repeat(3, minmax(0, 1fr));

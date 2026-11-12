@@ -123,6 +123,20 @@
     "topApplications": "Applications les plus utilisées",
     "title": "Bilan de la session de concentration"
   },
+  "focusHistory": {
+    "minimumLength": "Durée minimale de session",
+    "minimumLengthAria": "Durée minimale de session en minutes",
+    "minutes": "min",
+    "noMatchingSessions": "Aucune session ne correspond à cette durée."
+  },
+  "switchHistory": {
+    "close": "Fermer",
+    "empty": "Aucun changement d’application enregistré.",
+    "error": "Impossible de charger l’historique des changements d’application.",
+    "loading": "Chargement de l’historique des changements d’application…",
+    "open": "Ouvrir l’historique des changements d’application",
+    "title": "Historique des changements d’application"
+  },
   "goals": {
     "added": "Objectif ajouté. ZTally vous préviendra quand vous approcherez.",
     "composer": {

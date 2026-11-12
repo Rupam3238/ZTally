@@ -122,6 +122,20 @@
     "topApplications": "使用時間の長いアプリ",
     "title": "集中セッションのレポート"
   },
+  "focusHistory": {
+    "minimumLength": "セッションの最短時間",
+    "minimumLengthAria": "セッションの最短時間（分）",
+    "minutes": "分",
+    "noMatchingSessions": "この時間を満たすセッションはありません。"
+  },
+  "switchHistory": {
+    "close": "閉じる",
+    "empty": "アプリの切り替えは記録されていません。",
+    "error": "アプリ切り替え履歴を読み込めませんでした。",
+    "loading": "アプリ切り替え履歴を読み込み中…",
+    "open": "アプリ切り替え履歴を開く",
+    "title": "アプリ切り替え履歴"
+  },
   "goals": {
     "added": "目標を追加しました。近づいたら ZTally がお知らせします。",
     "composer": {

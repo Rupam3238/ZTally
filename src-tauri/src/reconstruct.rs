@@ -72,6 +72,7 @@ pub struct ReconstructedSession {
     pub session_start_ms: i64,
     pub session_end_ms: i64,
     pub observed_ms: i64,
+    pub eligible_observed_ms: i64,
     pub afk_ms: Option<i64>,
     pub ambiguous_ms: i64,
     pub system_ui_ms: i64,
@@ -330,6 +331,10 @@ pub fn reconstruct_session(
         .map(|obs| (obs.start_ms, obs.end_ms))
         .collect();
     let observed_ms = covered_duration(&all_obs);
+    let eligible_observed_ms = observed_ms
+        .saturating_sub(system_ui_ms)
+        .saturating_sub(afk_ms.unwrap_or(0))
+        .saturating_sub(ambiguous_ms);
 
     let gaps = uncovered_segments(session_start_ms, session_end_ms, &all_obs);
     let untracked_ms = gaps.iter().map(|g| g.ms).sum();
@@ -386,6 +391,7 @@ pub fn reconstruct_session(
         session_start_ms,
         session_end_ms,
         observed_ms,
+        eligible_observed_ms,
         afk_ms,
         ambiguous_ms,
         system_ui_ms,
@@ -610,6 +616,8 @@ mod tests {
         ];
         let rec = reconstruct_session(0, 4_000, &rows, 0);
         assert_eq!(rec.untracked_ms, 0);
+        assert_eq!(rec.afk_ms, Some(2_000));
+        assert_eq!(rec.eligible_observed_ms, 2_000);
         assert_eq!(rec.transitions.len(), 1);
         assert!(!rec.transitions[0].uncertain);
         assert_eq!(rec.uncertain_ms, 0);
@@ -625,6 +633,7 @@ mod tests {
         assert_eq!(rec.app_totals.get("a"), Some(&2_000));
         assert_eq!(rec.app_totals.get("b"), Some(&2_000));
         assert_eq!(rec.untracked_ms, 6_000);
+        assert_eq!(rec.eligible_observed_ms, 4_000);
     }
 
     #[test]
@@ -635,6 +644,7 @@ mod tests {
         ];
         let rec = reconstruct_session(0, 4_000, &rows, 0);
         assert_eq!(rec.observed_ms, 3_000);
+        assert_eq!(rec.eligible_observed_ms, 3_000);
         assert_eq!(rec.app_totals.get("a"), Some(&3_000));
     }
 
@@ -647,6 +657,7 @@ mod tests {
         let rec = reconstruct_session(0, 6_000, &rows, 0);
         assert_eq!(rec.observed_ms, 6_000);
         assert_eq!(rec.ambiguous_ms, 2_000);
+        assert_eq!(rec.eligible_observed_ms, 4_000);
         assert_eq!(rec.dwell_time_ms, 4_000);
         assert_eq!(rec.app_totals.get("a"), Some(&2_000));
         assert_eq!(rec.app_totals.get("b"), Some(&2_000));
@@ -666,6 +677,7 @@ mod tests {
         assert_eq!(rec.invalid_span_count, 0);
         assert_eq!(rec.observed_ms, 5_000);
         assert_eq!(rec.afk_ms, Some(3_000));
+        assert_eq!(rec.eligible_observed_ms, 2_000);
         assert_eq!(rec.dwell_time_ms, 2_000);
     }
 
@@ -685,6 +697,7 @@ mod tests {
         let rec = reconstruct_session(0, 2_000, &rows, 0);
         assert_eq!(rec.invalid_span_count, 2);
         assert_eq!(rec.observed_ms, 1_000);
+        assert_eq!(rec.eligible_observed_ms, 1_000);
     }
 
     #[test]
@@ -705,6 +718,7 @@ mod tests {
         assert_eq!(rec.recovery_gap_ms, 3_000);
         assert_eq!(rec.app_totals.get("a"), Some(&3_000));
         assert_eq!(rec.untracked_ms, 7_000);
+        assert_eq!(rec.eligible_observed_ms, 3_000);
     }
 
     #[test]
@@ -752,8 +766,19 @@ mod tests {
         let report = assess_reliability(&rec);
         assert_eq!(report.coverage, 0.0);
         assert_eq!(report.transition_uncertainty, 0.0);
+        assert_eq!(rec.eligible_observed_ms, 0);
         assert_eq!(report.status, "unknown");
         assert!(report.findings.iter().any(|f| f.code == "missing_evidence"));
+    }
+
+    #[test]
+    fn shell_only_observation_has_no_eligible_foreground_time() {
+        let rows = vec![span(0, 5_000, "plasmashell", None, false)];
+        let rec = reconstruct_session(0, 5_000, &rows, 0);
+        assert_eq!(rec.observed_ms, 5_000);
+        assert_eq!(rec.system_ui_ms, 5_000);
+        assert_eq!(rec.eligible_observed_ms, 0);
+        assert_eq!(rec.dwell_time_ms, 0);
     }
 
     #[test]
@@ -782,6 +807,7 @@ mod tests {
         assert_eq!(rec.transitions[0].from_app, "firefox");
         assert_eq!(rec.transitions[0].to_app, "code");
         assert_eq!(rec.system_ui_ms, 2_000);
+        assert_eq!(rec.eligible_observed_ms, 4_000);
         assert_eq!(rec.app_totals.get("firefox"), Some(&2_000));
         assert_eq!(rec.app_totals.get("code"), Some(&2_000));
     }
@@ -797,6 +823,7 @@ mod tests {
         let rec = reconstruct_session(0, 7_000, &rows, 0);
         assert_eq!(rec.app_visits.len(), 2);
         assert_eq!(rec.system_ui_ms, 4_000);
+        assert_eq!(rec.eligible_observed_ms, 3_000);
         assert_eq!(rec.transitions.len(), 1);
         assert_eq!(rec.untracked_ms, 0);
     }
@@ -809,6 +836,7 @@ mod tests {
         ];
         let rec = reconstruct_session(0, 6_000, &rows, 0);
         assert_eq!(rec.system_ui_ms, 2_000);
+        assert_eq!(rec.eligible_observed_ms, 4_000);
         assert_eq!(rec.app_totals.get("firefox"), Some(&4_000));
         assert_eq!(rec.dwell_time_ms, 4_000);
         assert_eq!(rec.app_visits.len(), 2);
@@ -834,6 +862,7 @@ mod tests {
         ];
         let rec = reconstruct_session(1_000, 6_000, &rows, 0);
         assert_eq!(rec.system_ui_ms, 3_000);
+        assert_eq!(rec.eligible_observed_ms, 2_000);
         assert_eq!(rec.app_totals.get("firefox"), Some(&2_000));
         assert_eq!(rec.dwell_time_ms, 2_000);
         assert_eq!(rec.app_visits.len(), 1);

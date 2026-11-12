@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, type FocusRecord, type FocusSessionReport } from "../lib/ipc";
+import { useT } from "../lib/i18n";
 import { useStore } from "../lib/store";
 import { fmtDur } from "../lib/time";
 
@@ -23,12 +24,14 @@ function resolveAppLabel(appKey: string, labels: Map<string, string>): string {
 
 export function FocusHistory() {
   const { version } = useStore();
+  const t = useT();
   const [sessions, setSessions] = useState<FocusRecord[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [report, setReport] = useState<FocusSessionReport | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [reportErrorId, setReportErrorId] = useState<number | null>(null);
   const [listError, setListError] = useState(false);
+  const [minimumSessionMinutes, setMinimumSessionMinutes] = useState(5);
 
   useEffect(() => {
     let alive = true;
@@ -75,6 +78,17 @@ export function FocusHistory() {
     };
   }, [selectedId, version]);
 
+  const visibleSessions = useMemo(
+    () => sessions.filter((session) => session.end - session.start >= minimumSessionMinutes * 60_000),
+    [sessions, minimumSessionMinutes],
+  );
+
+  useEffect(() => {
+    if (selectedId != null && !visibleSessions.some((session) => session.id === selectedId)) {
+      setSelectedId(visibleSessions.find((session) => session.id != null)?.id ?? null);
+    }
+  }, [selectedId, visibleSessions]);
+
   const selected = sessions.find((session) => session.id === selectedId) ?? null;
   const reportForSelection = report && report.session.id === selectedId ? report : null;
 
@@ -87,9 +101,27 @@ export function FocusHistory() {
   if (!sessions.length) return <div style={{ padding: 24, color: "var(--muted)" }}>{listError ? "Focus session history could not be loaded." : "No focus sessions recorded yet."}</div>;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 320px) minmax(0, 1fr)", gap: 18, padding: 18, minHeight: 0 }}>
+    <div className="focus-history" style={{ display: "grid", gridTemplateColumns: "minmax(240px, 320px) minmax(0, 1fr)", gap: 18, padding: 18, minHeight: 0 }}>
       <aside style={{ display: "grid", gap: 12 }}>
-        {sessions.map((session) => {
+        <label className="focus-history-filter">
+          <span>{t("focusHistory.minimumLength")}</span>
+          <span className="focus-history-filter-control">
+            <input
+              type="number"
+              min={0}
+              max={1440}
+              step={1}
+              value={minimumSessionMinutes}
+              aria-label={t("focusHistory.minimumLengthAria")}
+              onChange={(event) => {
+                const minutes = Number(event.currentTarget.value);
+                setMinimumSessionMinutes(Number.isFinite(minutes) ? Math.round(Math.max(0, Math.min(1440, minutes))) : 0);
+              }}
+            />
+            <span>{t("focusHistory.minutes")}</span>
+          </span>
+        </label>
+        {visibleSessions.map((session) => {
           const active = selected?.id === session.id;
           return (
             <button
@@ -127,6 +159,7 @@ export function FocusHistory() {
       {selected && reportForSelection && <FocusSessionDetail key={selectedId} report={reportForSelection} />}
       {selected && !reportForSelection && reportErrorId === selectedId && <div style={{ padding: 12, color: "var(--muted)" }}>This session report could not be loaded.</div>}
       {selected && !reportForSelection && reportErrorId !== selectedId && <div style={{ padding: 12, color: "var(--muted)" }}>Reconstructing session evidence…</div>}
+      {!visibleSessions.length && <div style={{ padding: 12, color: "var(--muted)" }}>{t("focusHistory.noMatchingSessions")}</div>}
     </div>
   );
 }
@@ -149,7 +182,6 @@ function FocusSessionDetail({ report }: { report: FocusSessionReport }) {
   }
   const appTotals = Object.entries(reconstruction.appTotals).sort(([, a], [, b]) => b - a);
   const totalLength = Math.max(0, session.end - session.start);
-  const evidencePct = Math.round(reliability.coverage * 100);
   const attributableMs = reconstruction.dwellTimeMs;
 
   return (
@@ -192,19 +224,7 @@ function FocusSessionDetail({ report }: { report: FocusSessionReport }) {
         <StatCard label="System UI observed" value={fmtDur(reconstruction.systemUiMs)} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.8fr)", gap: 16, minHeight: 0 }}>
-        <Panel title="Session summary">
-          <MetricRow label="Observed" value={fmtDur(reconstruction.observedMs)} pct={pct(reconstruction.observedMs, totalLength)} />
-          <MetricRow label="AFK observed" value={reconstruction.afkMs == null ? "Not separately evidenced" : fmtDur(reconstruction.afkMs)} />
-          <MetricRow label="System UI observed" value={fmtDur(reconstruction.systemUiMs)} pct={pct(reconstruction.systemUiMs, totalLength)} />
-          <MetricRow label="Untracked" value={fmtDur(reconstruction.untrackedMs)} pct={pct(reconstruction.untrackedMs, totalLength)} />
-          <MetricRow label="Uncertain transition time" value={fmtDur(reconstruction.uncertainMs)} />
-          <MetricRow label="Recovery gap metadata" value={fmtDur(reconstruction.recoveryGapMs)} />
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted)" }}>
-            {reliability.status} confidence · {evidencePct}% tracked-window coverage.
-          </div>
-        </Panel>
-
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16, minHeight: 0 }}>
         <Panel title="Application totals">
           {appTotals.length ? (
             <div style={{ display: "grid", gap: 8 }}>

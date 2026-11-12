@@ -176,6 +176,7 @@ export interface ReconstructedSession {
   sessionStartMs: number;
   sessionEndMs: number;
   observedMs: number;
+  eligibleObservedMs: number;
   afkMs: number | null;
   ambiguousMs: number;
   systemUiMs: number;
@@ -245,6 +246,7 @@ export interface Summary {
   firstMs: number | null;
   lastMs: number | null;
   switches: number;
+  switchEligibleMs: number;
   focus: Streak | null;
   categories: CatTotal[];
   apps: LedgerItem[];
@@ -256,6 +258,16 @@ export interface Summary {
 
   callMs: number;
   calls: BackgroundItem[];
+}
+
+export interface SwitchHistoryEntry {
+  fromApp: string;
+  fromDisplay: string;
+  toApp: string;
+  toDisplay: string;
+  atMs: number;
+  uncertain: boolean;
+  gapMs: number;
 }
 
 
@@ -332,6 +344,7 @@ export const api = {
   focusStop: () => invoke<void>("focus_stop"),
   focusSessions: () => invoke<FocusRecord[]>("focus_sessions"),
   focusSessionReport: (id: number) => invoke<FocusSessionReport>("focus_session_report", { id }),
+  switchHistory: () => invoke<SwitchHistoryEntry[]>("switch_history"),
   focusHistory: (start: number, end: number) => invoke<FocusRecord[]>("focus_history", { start, end }),
   apps: () => invoke<AppEntry[]>("apps"),
   domains: () => invoke<[string, number][]>("domains"),

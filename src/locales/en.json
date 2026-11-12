@@ -123,6 +123,20 @@
     "topApplications": "Top applications",
     "title": "Focus session report"
   },
+  "focusHistory": {
+    "minimumLength": "Minimum session length",
+    "minimumLengthAria": "Minimum session length in minutes",
+    "minutes": "min",
+    "noMatchingSessions": "No sessions meet this duration."
+  },
+  "switchHistory": {
+    "close": "Close",
+    "empty": "No application switches recorded.",
+    "error": "Could not load application switch history.",
+    "loading": "Loading application switch history…",
+    "open": "Open application switch history",
+    "title": "Application switch history"
+  },
   "goals": {
     "added": "Goal added. ZTally will nudge you when you get close.",
     "composer": {
