@@ -17,6 +17,14 @@ pub struct FocusSession {
 
     pub drift_run_ms: i64,
     #[serde(skip)]
+    pub db_id: Option<i64>,
+    #[serde(skip)]
+    pub recovered: bool,
+    #[serde(skip)]
+    pub last_checkpoint_ms: i64,
+    #[serde(skip)]
+    pub recovery_gap_ms: i64,
+    #[serde(skip)]
     last_nudge: i64,
     #[serde(skip)]
     last_tick: i64,
@@ -29,14 +37,30 @@ pub enum FocusEvent {
 }
 
 impl FocusSession {
+    pub fn resume_at(&mut self, now: i64) {
+        self.last_tick = now;
+    }
+
     pub fn new(now: i64, minutes: i64) -> Self {
         let planned_ms = minutes.clamp(5, 240) * 60_000;
-        Self { start: now, end: now + planned_ms, planned_ms, drift_ms: 0, drift_run_ms: 0, last_nudge: i64::MIN / 2, last_tick: now }
+        Self {
+            start: now,
+            end: now + planned_ms,
+            planned_ms,
+            drift_ms: 0,
+            drift_run_ms: 0,
+            db_id: None,
+            recovered: false,
+            last_checkpoint_ms: now,
+            recovery_gap_ms: 0,
+            last_nudge: i64::MIN / 2,
+            last_tick: now,
+        }
     }
 
 
     pub fn tick(&mut self, now: i64, distracting: bool) -> Option<FocusEvent> {
-        let dt = (now - self.last_tick).clamp(0, 2_000);
+        let dt = now.saturating_sub(self.last_tick).clamp(0, 2_000);
         self.last_tick = now;
         if now >= self.end {
             return Some(FocusEvent::Done);
@@ -88,5 +112,26 @@ mod tests {
         let mut s = FocusSession::new(0, 5);
         assert_eq!(s.tick(299_000, false), None);
         assert_eq!(s.tick(300_000, false), Some(FocusEvent::Done));
+    }
+
+    #[test]
+    fn long_unobserved_gaps_are_not_attributed_to_the_current_app() {
+        let mut s = FocusSession::new(0, 25);
+        assert_eq!(s.tick(90_000, true), None);
+        assert_eq!(s.drift_ms, 2_000);
+    }
+
+    #[test]
+    fn recovered_session_does_not_count_unobserved_gap_as_drift() {
+        let restored_at = 15 * 60_000;
+        let mut s = FocusSession::new(0, 25);
+        s.last_tick = 0;
+        s.drift_ms = 0;
+        s.drift_run_ms = 0;
+        s.recovery_gap_ms = 15 * 60_000;
+        s.last_tick = restored_at;
+
+        assert_eq!(s.tick(restored_at + 1000, true), None);
+        assert_eq!(s.drift_ms, 1000, "only time observed after recovery should count as drift");
     }
 }

@@ -5,7 +5,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useT } from "./i18n";
 import { api, type Category, type Settings, type Status } from "./ipc";
 
-export type View = "today" | "week" | "calendar" | "report" | "goals" | "rules" | "settings";
+export type View = "today" | "week" | "calendar" | "report" | "focusHistory" | "goals" | "rules" | "settings";
 
 interface Toast {
   id: number;

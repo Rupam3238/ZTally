@@ -12,6 +12,7 @@ import { tourSignal } from "../lib/tour";
 import { useStore, type View } from "../lib/store";
 import { addDays, dayBounds, fmtClock, fmtDur, fmtShortDate, isSameDay, relativeDay, startOfWeek } from "../lib/time";
 import { Calendar } from "../views/Calendar";
+import { FocusHistory } from "../views/FocusHistory";
 import { Goals } from "../views/Goals";
 import { Onboarding } from "../views/Onboarding";
 import { Report } from "../views/Report";
@@ -25,6 +26,7 @@ const NAV: { view: View; icon: string }[] = [
   { view: "week", icon: "week" },
   { view: "calendar", icon: "calendar" },
   { view: "report", icon: "report" },
+  { view: "focusHistory", icon: "report" },
   { view: "goals", icon: "goals" },
   { view: "rules", icon: "rules" },
   { view: "settings", icon: "settings" },
@@ -64,7 +66,7 @@ export function App() {
         const next = addDays(date, step);
         if (next.getTime() <= Date.now()) setDate(next);
       } else if (e.key.toLowerCase() === "t") setDate(new Date());
-      else if (/^[1-7]$/.test(e.key)) setView(NAV[Number(e.key) - 1].view);
+      else if (/^[1-8]$/.test(e.key)) setView(NAV[Number(e.key) - 1].view);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -145,6 +147,7 @@ export function App() {
           {view === "week" && <Week />}
           {view === "calendar" && <Calendar />}
           {view === "report" && <Report />}
+          {view === "focusHistory" && <FocusHistory />}
           {view === "goals" && <Goals />}
           {view === "rules" && <Rules />}
           {view === "settings" && <Settings />}

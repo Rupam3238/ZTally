@@ -203,6 +203,7 @@
   },
   "nav": {
     "calendar": "Calendario",
+    "focusHistory": "Historial de enfoque",
     "goals": "Objetivos",
     "main": "Principal",
     "report": "Recibo",
@@ -608,6 +609,7 @@
   },
   "titles": {
     "calendar": "Calendario",
+    "focusHistory": "Historial de enfoque",
     "goals": "Objetivos",
     "report": "El recibo",
     "rules": "Categorías y reglas",
@@ -659,7 +661,7 @@
       "try": "Pruébalo: pulsa Ctrl+K."
     },
     "rail": {
-      "body": "Semana, Calendario, Recibo, Objetivos y Categorías están en la barra lateral. Las teclas 1–7 van directas.",
+      "body": "Semana, Calendario, Recibo, Historial de enfoque, Objetivos y Categorías están en la barra lateral. Las teclas 1–8 van directas.",
       "title": "Todo lo demás",
       "try": "Pruébalo: pasa el ratón por la barra lateral."
     },

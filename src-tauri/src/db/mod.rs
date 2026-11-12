@@ -39,11 +39,20 @@ pub struct Goal {
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FocusRecord {
+    pub id: Option<i64>,
     pub start: i64,
     pub end: i64,
     pub planned_ms: i64,
     pub drift_ms: i64,
     pub completed: bool,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub updated_at_ms: Option<i64>,
+    #[serde(default)]
+    pub recovered: bool,
+    #[serde(default)]
+    pub recovery_gap_ms: i64,
 }
 
 #[derive(Clone, Debug)]
@@ -67,7 +76,7 @@ pub struct AppEntry {
     pub last_seen: i64,
 }
 
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 6;
 
 impl Db {
     pub fn open(path: &Path) -> DbResult<Self> {
@@ -88,13 +97,58 @@ impl Db {
         )
         .map_err(e)?;
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(e)?;
-        if version < SCHEMA_VERSION {
+        if version < 1 {
             conn.execute_batch(include_str!("schema.sql")).map_err(e)?;
-            conn.execute_batch(&format!("PRAGMA user_version={SCHEMA_VERSION}")).map_err(e)?;
         }
+        if version < 6 {
+            Self::migrate_focus_sessions(&conn)?;
+        }
+        conn.execute_batch(&format!("PRAGMA user_version={SCHEMA_VERSION}")).map_err(e)?;
         let db = Self { conn };
         db.seed_if_empty()?;
         Ok(db)
+    }
+
+    fn migrate_focus_sessions(conn: &Connection) -> DbResult<()> {
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(focus_sessions)")
+            .map_err(e)?
+            .query_map([], |row| row.get(1))
+            .map_err(e)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(e)?;
+
+        if !columns.iter().any(|c| c == "status") {
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN status TEXT", []).map_err(e)?;
+        }
+        if !columns.iter().any(|c| c == "updated_at_ms") {
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN updated_at_ms INTEGER", []).map_err(e)?;
+        }
+        if !columns.iter().any(|c| c == "recovered") {
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN recovered INTEGER NOT NULL DEFAULT 0", []).map_err(e)?;
+        }
+        if !columns.iter().any(|c| c == "recovery_gap_ms") {
+            conn.execute("ALTER TABLE focus_sessions ADD COLUMN recovery_gap_ms INTEGER NOT NULL DEFAULT 0", []).map_err(e)?;
+        }
+
+        conn.execute(
+            "UPDATE focus_sessions SET status = CASE WHEN end_ms IS NULL OR end_ms = 0 THEN 'active' WHEN completed = 1 THEN 'completed' ELSE 'ended_early' END, updated_at_ms = COALESCE(updated_at_ms, end_ms, start_ms), recovery_gap_ms = COALESCE(recovery_gap_ms, 0) WHERE status IS NULL OR status = ''",
+            [],
+        )
+        .map_err(e)?;
+        conn.execute(
+            "UPDATE focus_sessions SET completed = CASE WHEN status = 'completed' THEN 1 ELSE 0 END WHERE completed IS NULL OR (status IN ('active', 'ended_early', 'interrupted'))",
+            [],
+        )
+        .map_err(e)?;
+        conn.execute(
+            "UPDATE focus_sessions SET status = 'interrupted', completed = 0, end_ms = COALESCE(updated_at_ms, start_ms), updated_at_ms = COALESCE(updated_at_ms, start_ms) WHERE status = 'active' AND id != (SELECT id FROM focus_sessions WHERE status = 'active' ORDER BY start_ms DESC, id DESC LIMIT 1)",
+            [],
+        )
+        .map_err(e)?;
+        conn.execute_batch("CREATE UNIQUE INDEX IF NOT EXISTS focus_single_active ON focus_sessions(status) WHERE status = 'active'")
+            .map_err(e)?;
+        Ok(())
     }
 
 
@@ -370,30 +424,143 @@ impl Db {
     }
 
 
-    pub fn insert_focus(&self, f: &FocusRecord) -> DbResult<()> {
-        self.conn
-            .execute(
-                "INSERT INTO focus_sessions(start_ms, end_ms, planned_ms, drift_ms, completed) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![f.start, f.end, f.planned_ms, f.drift_ms, f.completed],
+    pub fn insert_focus(&self, f: &FocusRecord) -> DbResult<i64> {
+        let tx = self.conn.unchecked_transaction().map_err(e)?;
+        if f.status == "active" {
+            tx.execute(
+                "UPDATE focus_sessions SET status = 'interrupted', completed = 0, end_ms = COALESCE(updated_at_ms, start_ms), updated_at_ms = COALESCE(updated_at_ms, start_ms) WHERE status = 'active'",
+                [],
             )
             .map_err(e)?;
-        Ok(())
+        }
+        let rowid = tx
+            .query_row(
+                "INSERT INTO focus_sessions(start_ms, end_ms, planned_ms, drift_ms, completed, status, updated_at_ms, recovered, recovery_gap_ms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 RETURNING id",
+                params![f.start, f.end, f.planned_ms, f.drift_ms, f.completed, f.status, f.updated_at_ms, f.recovered, f.recovery_gap_ms],
+                |r| r.get(0),
+            )
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(rowid)
+    }
+
+    pub fn update_focus(&self, id: i64, f: &FocusRecord) -> DbResult<()> {
+        let changed = self.conn.execute(
+            "UPDATE focus_sessions SET start_ms = ?2, end_ms = ?3, planned_ms = ?4, drift_ms = ?5, completed = ?6, status = ?7, updated_at_ms = ?8, recovered = ?9, recovery_gap_ms = ?10 WHERE id = ?1",
+            params![id, f.start, f.end, f.planned_ms, f.drift_ms, f.completed, f.status, f.updated_at_ms, f.recovered, f.recovery_gap_ms],
+        )
+        .map_err(e)?;
+        if changed == 1 {
+            Ok(())
+        } else {
+            Err(format!("focus session {id} not found"))
+        }
+    }
+
+    pub fn active_focus(&self) -> DbResult<Option<FocusRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached(
+                "SELECT id, start_ms, COALESCE(end_ms, start_ms), planned_ms, drift_ms, completed, COALESCE(status, CASE WHEN completed = 1 THEN 'completed' ELSE 'active' END), updated_at_ms, recovered, recovery_gap_ms
+                 FROM focus_sessions
+                 WHERE status = 'active' OR (end_ms IS NULL AND completed = 0)
+                 ORDER BY start_ms DESC LIMIT 1",
+            )
+            .map_err(e)?;
+        let rec = stmt.query_row([], |r| {
+            Ok(FocusRecord {
+                id: Some(r.get(0)?),
+                start: r.get(1)?,
+                end: r.get(2)?,
+                planned_ms: r.get(3)?,
+                drift_ms: r.get(4)?,
+                completed: r.get(5)?,
+                status: r.get(6)?,
+                updated_at_ms: r.get(7)?,
+                recovered: r.get(8)?,
+                recovery_gap_ms: r.get(9)?,
+            })
+        }).optional().map_err(e)?;
+        Ok(rec)
     }
 
     pub fn focus_in(&self, start: i64, end: i64) -> DbResult<Vec<FocusRecord>> {
         let mut stmt = self
             .conn
             .prepare_cached(
-                "SELECT start_ms, end_ms, planned_ms, drift_ms, completed FROM focus_sessions
-                 WHERE start_ms < ?2 AND end_ms > ?1 ORDER BY start_ms",
+                "SELECT id, start_ms, COALESCE(end_ms, start_ms), planned_ms, drift_ms, completed, COALESCE(status, CASE WHEN completed = 1 THEN 'completed' ELSE 'active' END), updated_at_ms, recovered, recovery_gap_ms FROM focus_sessions
+                 WHERE start_ms < ?2 AND COALESCE(end_ms, start_ms) > ?1 ORDER BY start_ms",
             )
             .map_err(e)?;
         let rows = stmt
             .query_map(params![start, end], |r| {
-                Ok(FocusRecord { start: r.get(0)?, end: r.get(1)?, planned_ms: r.get(2)?, drift_ms: r.get(3)?, completed: r.get(4)? })
+                Ok(FocusRecord {
+                    id: Some(r.get(0)?),
+                    start: r.get(1)?,
+                    end: r.get(2)?,
+                    planned_ms: r.get(3)?,
+                    drift_ms: r.get(4)?,
+                    completed: r.get(5)?,
+                    status: r.get(6)?,
+                    updated_at_ms: r.get(7)?,
+                    recovered: r.get(8)?,
+                    recovery_gap_ms: r.get(9)?,
+                })
             })
             .map_err(e)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(e)
+    }
+
+    pub fn focus_sessions(&self) -> DbResult<Vec<FocusRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached(
+                "SELECT id, start_ms, COALESCE(end_ms, start_ms), planned_ms, drift_ms, completed, COALESCE(status, CASE WHEN completed = 1 THEN 'completed' ELSE 'active' END), updated_at_ms, recovered, recovery_gap_ms FROM focus_sessions ORDER BY start_ms DESC",
+            )
+            .map_err(e)?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(FocusRecord {
+                    id: Some(r.get(0)?),
+                    start: r.get(1)?,
+                    end: r.get(2)?,
+                    planned_ms: r.get(3)?,
+                    drift_ms: r.get(4)?,
+                    completed: r.get(5)?,
+                    status: r.get(6)?,
+                    updated_at_ms: r.get(7)?,
+                    recovered: r.get(8)?,
+                    recovery_gap_ms: r.get(9)?,
+                })
+            })
+            .map_err(e)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(e)
+    }
+
+    pub fn focus_by_id(&self, id: i64) -> DbResult<Option<FocusRecord>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached(
+                "SELECT id, start_ms, COALESCE(end_ms, start_ms), planned_ms, drift_ms, completed, COALESCE(status, CASE WHEN completed = 1 THEN 'completed' ELSE 'active' END), updated_at_ms, recovered, recovery_gap_ms FROM focus_sessions WHERE id = ?1 LIMIT 1",
+            )
+            .map_err(e)?;
+        stmt.query_row([id], |r| {
+            Ok(FocusRecord {
+                id: Some(r.get(0)?),
+                start: r.get(1)?,
+                end: r.get(2)?,
+                planned_ms: r.get(3)?,
+                drift_ms: r.get(4)?,
+                completed: r.get(5)?,
+                status: r.get(6)?,
+                updated_at_ms: r.get(7)?,
+                recovered: r.get(8)?,
+                recovery_gap_ms: r.get(9)?,
+            })
+        })
+        .optional()
+        .map_err(e)
     }
 
 
@@ -541,6 +708,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn empty_focus_history_and_missing_ids_are_explicit() {
+        let db = Db::open_in_memory().unwrap();
+        assert!(db.focus_sessions().unwrap().is_empty());
+        assert_eq!(db.focus_by_id(42).unwrap(), None);
+    }
+
+    #[test]
     fn seeds_and_roundtrips() {
         let db = Db::open_in_memory().unwrap();
         assert_eq!(db.categories().unwrap().len(), crate::seed::CATEGORIES.len());
@@ -562,9 +736,23 @@ mod tests {
         assert_eq!(user.len(), 1);
         assert_eq!((user[0].pattern.as_str(), user[0].category_id), ("code", 4));
 
-        let f = FocusRecord { start: 10, end: 20, planned_ms: 10, drift_ms: 1, completed: true };
-        db.insert_focus(&f).unwrap();
-        assert_eq!(db.focus_in(0, 15).unwrap(), vec![f]);
+        let f = FocusRecord {
+            id: None,
+            start: 10,
+            end: 20,
+            planned_ms: 10,
+            drift_ms: 1,
+            completed: true,
+            status: "completed".into(),
+            updated_at_ms: Some(20),
+            recovered: false,
+            recovery_gap_ms: 0,
+        };
+        let id = db.insert_focus(&f).unwrap();
+        let expected = FocusRecord { id: Some(id), ..f.clone() };
+        assert_eq!(db.focus_in(0, 15).unwrap(), vec![expected.clone()]);
+        assert_eq!(db.focus_by_id(id).unwrap(), Some(expected.clone()));
+        assert_eq!(db.focus_sessions().unwrap(), vec![expected]);
         db.delete_spans(0, 100, None).unwrap();
         assert!(db.focus_in(0, 100).unwrap().is_empty(), "forgetting a range also forgets its focus sessions");
 
@@ -572,5 +760,113 @@ mod tests {
         st.idle_threshold_s = 42;
         db.save_settings(&st).unwrap();
         assert_eq!(db.settings().idle_threshold_s, 42);
+    }
+
+    #[test]
+    fn migration_preserves_legacy_focus_sessions() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "PRAGMA user_version = 4;
+             CREATE TABLE focus_sessions (
+                 id INTEGER PRIMARY KEY,
+                 start_ms INTEGER NOT NULL,
+                 end_ms INTEGER NOT NULL,
+                 planned_ms INTEGER NOT NULL,
+                 drift_ms INTEGER NOT NULL DEFAULT 0,
+                 completed INTEGER NOT NULL DEFAULT 0
+             );",
+        )
+        .unwrap();
+        for index in 0..7 {
+            let start = 1_000 + index * 3_000;
+            conn.execute(
+                "INSERT INTO focus_sessions(start_ms, end_ms, planned_ms, drift_ms, completed) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![start, start + 2_000, 2_000, 0, if index == 0 { 1 } else { 0 }],
+            )
+            .unwrap();
+        }
+
+        Db::migrate_focus_sessions(&conn).unwrap();
+
+        let rows: Vec<(i64, i64, i64, i64, i64, String, Option<i64>, i64)> = conn
+            .prepare("SELECT start_ms, end_ms, planned_ms, drift_ms, completed, status, updated_at_ms, recovered FROM focus_sessions ORDER BY start_ms")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        assert_eq!(rows.len(), 7);
+        assert_eq!(rows[0].0, 1_000);
+        assert_eq!(rows[0].1, 3_000);
+        assert_eq!(rows[0].5, "completed");
+        assert_eq!(rows[6].0, 19_000);
+        assert_eq!(rows[6].1, 21_000);
+        assert_eq!(rows[6].5, "ended_early");
+        conn.execute(
+            "INSERT INTO focus_sessions(start_ms, end_ms, planned_ms, status) VALUES (25000, 30000, 5000, 'active')",
+            [],
+        )
+        .unwrap();
+        assert!(conn.execute(
+            "INSERT INTO focus_sessions(start_ms, end_ms, planned_ms, status) VALUES (26000, 31000, 5000, 'active')",
+            [],
+        ).is_err());
+    }
+
+    #[test]
+    fn active_focus_queries_only_one_live_record() {
+        let db = Db::open_in_memory().unwrap();
+        db.insert_focus(&FocusRecord {
+            id: None,
+            start: 1_000,
+            end: 60_000,
+            planned_ms: 60_000,
+            drift_ms: 0,
+            completed: false,
+            status: "active".into(),
+            updated_at_ms: Some(1_000),
+            recovered: false,
+            recovery_gap_ms: 0,
+        })
+        .unwrap();
+        db.insert_focus(&FocusRecord {
+            id: None,
+            start: 2_000,
+            end: 70_000,
+            planned_ms: 68_000,
+            drift_ms: 0,
+            completed: false,
+            status: "active".into(),
+            updated_at_ms: Some(2_000),
+            recovered: false,
+            recovery_gap_ms: 0,
+        })
+        .unwrap();
+
+        let rec = db.active_focus().unwrap().unwrap();
+        assert_eq!(rec.start, 2_000);
+        assert_eq!(rec.status, "active");
+        let sessions = db.focus_sessions().unwrap();
+        assert_eq!(sessions.iter().filter(|session| session.status == "active").count(), 1);
+        assert_eq!(sessions.iter().find(|session| session.start == 1_000).unwrap().status, "interrupted");
+
+        let recovered = FocusRecord {
+            recovered: true,
+            recovery_gap_ms: 12_000,
+            updated_at_ms: Some(3_000),
+            ..rec.clone()
+        };
+        db.update_focus(rec.id.unwrap(), &recovered).unwrap();
+        assert_eq!(db.focus_by_id(rec.id.unwrap()).unwrap(), Some(recovered.clone()));
+
+        let finalized = FocusRecord {
+            end: 40_000,
+            status: "ended_early".into(),
+            updated_at_ms: Some(4_000),
+            ..recovered.clone()
+        };
+        db.update_focus(rec.id.unwrap(), &finalized).unwrap();
+        assert_eq!(db.focus_by_id(rec.id.unwrap()).unwrap(), Some(finalized));
     }
 }

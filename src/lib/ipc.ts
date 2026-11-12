@@ -108,11 +108,95 @@ export interface FocusSession {
 }
 
 export interface FocusRecord {
+  id: number | null;
   start: number;
   end: number;
   plannedMs: number;
   driftMs: number;
   completed: boolean;
+  status: string;
+  updatedAtMs: number | null;
+  recovered: boolean;
+  recoveryGapMs: number;
+}
+
+export interface ObservationSpan {
+  startMs: number;
+  endMs: number;
+  appKey: string;
+  display: string;
+  title: string;
+  domain: string | null;
+  afk: boolean;
+}
+
+export interface ApplicationVisit {
+  appKey: string;
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+  title: string;
+}
+
+export interface SessionGap {
+  startMs: number;
+  endMs: number;
+  ms: number;
+  reason: string;
+}
+
+export interface ApplicationTransition {
+  fromApp: string;
+  toApp: string;
+  atMs: number;
+  uncertain: boolean;
+  gapMs: number;
+}
+
+export interface ReliabilityFinding {
+  code: string;
+  severity: string;
+  summary: string;
+  startMs: number | null;
+  endMs: number | null;
+  durationMs: number | null;
+}
+
+export interface ReliabilityAssessment {
+  status: string;
+  coverage: number;
+  observationQuality: number;
+  transitionUncertainty: number;
+  trackingIntegrity: number;
+  dataIntegrity: number;
+  findings: ReliabilityFinding[];
+}
+
+export interface ReconstructedSession {
+  sessionStartMs: number;
+  sessionEndMs: number;
+  observedMs: number;
+  afkMs: number | null;
+  ambiguousMs: number;
+  untrackedMs: number;
+  uncertainMs: number;
+  recoveryGapMs: number;
+  observations: ObservationSpan[];
+  appTotals: Record<string, number>;
+  appVisits: ApplicationVisit[];
+  transitions: ApplicationTransition[];
+  gaps: SessionGap[];
+  invalidSpanCount: number;
+  dwellTimeMs: number;
+  medianDwellMs: number;
+  averageDwellMs: number;
+  shortVisits: number;
+}
+
+export interface FocusSessionReport {
+  session: FocusRecord;
+  reconstruction: ReconstructedSession;
+  reliability: ReliabilityAssessment;
 }
 
 export interface BgSeg {
@@ -245,6 +329,8 @@ export const api = {
   resetAll: () => invoke<void>("reset_all"),
   focusStart: (minutes: number) => invoke<void>("focus_start", { minutes }),
   focusStop: () => invoke<void>("focus_stop"),
+  focusSessions: () => invoke<FocusRecord[]>("focus_sessions"),
+  focusSessionReport: (id: number) => invoke<FocusSessionReport>("focus_session_report", { id }),
   focusHistory: (start: number, end: number) => invoke<FocusRecord[]>("focus_history", { start, end }),
   apps: () => invoke<AppEntry[]>("apps"),
   domains: () => invoke<[string, number][]>("domains"),

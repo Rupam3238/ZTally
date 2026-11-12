@@ -203,6 +203,7 @@
   },
   "nav": {
     "calendar": "Calendar",
+    "focusHistory": "Focus history",
     "goals": "Goals",
     "main": "Main",
     "report": "Receipt",
@@ -608,6 +609,7 @@
   },
   "titles": {
     "calendar": "Calendar",
+    "focusHistory": "Focus history",
     "goals": "Goals",
     "report": "The Receipt",
     "rules": "Categories & rules",
@@ -659,7 +661,7 @@
       "try": "Try it: press Ctrl+K."
     },
     "rail": {
-      "body": "Week, Calendar, Receipt, Goals and Categories live in the sidebar. Numbers 1–7 jump straight to them.",
+      "body": "Week, Calendar, Receipt, Focus history, Goals and Categories live in the sidebar. Numbers 1–8 jump straight to them.",
       "title": "Everything else",
       "try": "Try it: hover the sidebar."
     },

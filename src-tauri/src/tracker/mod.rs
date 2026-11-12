@@ -637,6 +637,7 @@ pub fn run(
     engine: Arc<Mutex<Engine>>,
     settings: Arc<Mutex<Settings>>,
     paused_until: Arc<Mutex<i64>>,
+    focus_active: impl Fn() -> bool + Send + 'static,
     mut on_tick: impl FnMut(i64, bool),
 ) {
     let mut last_minute = 0i64;
@@ -663,8 +664,9 @@ pub fn run(
         }
         on_tick(now, minute);
 
-        let sleep = 1000 - (chrono::Utc::now().timestamp_millis() % 1000);
-        std::thread::sleep(Duration::from_millis(sleep.clamp(200, 1000) as u64));
+        let poll_ms: i64 = if focus_active() { 500 } else { 1000 };
+        let next = poll_ms.saturating_sub(chrono::Utc::now().timestamp_millis() % poll_ms);
+        std::thread::sleep(Duration::from_millis(next.max(200) as u64));
     }
 }
 

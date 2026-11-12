@@ -8,6 +8,7 @@ mod db;
 mod focus;
 mod i18n;
 mod model;
+mod reconstruct;
 mod report;
 mod seed;
 mod tracker;
@@ -224,11 +225,19 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 "resume" => set_pause(app, 0),
                 "focus_start" => {
                     let m = app.state::<AppState>().settings.lock().focus_minutes;
-                    start_focus(app, m);
+                    if let Err(error) = start_focus(app, m) {
+                        eprintln!("[ztally] focus start failed: {error}");
+                    }
                 }
-                "focus_end" => end_focus(app, false),
+                "focus_end" => {
+                    if let Err(error) = end_focus(app, false) {
+                        eprintln!("[ztally] focus stop failed: {error}");
+                    }
+                }
                 "quit" => {
-                    end_focus(app, false);
+                    if let Err(error) = end_focus(app, false) {
+                        eprintln!("[ztally] focus finalization failed: {error}");
+                    }
                     app.state::<AppState>().engine.lock().shutdown();
                     app.exit(0);
                 }
@@ -247,26 +256,71 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 
-pub fn start_focus(app: &AppHandle, minutes: i64) {
+fn focus_record(f: &focus::FocusSession, completed: bool, now: i64) -> db::FocusRecord {
+    db::FocusRecord {
+        id: f.db_id,
+        start: f.start,
+        end: if completed { f.end } else { now.min(f.end) },
+        planned_ms: f.planned_ms,
+        drift_ms: f.drift_ms,
+        completed,
+        status: if completed { "completed" } else { "ended_early" }.to_string(),
+        updated_at_ms: Some(now),
+        recovered: f.recovered,
+        recovery_gap_ms: f.recovery_gap_ms,
+    }
+}
+
+fn persist_focus_record(state: &AppState, record: &db::FocusRecord) -> Result<(), String> {
+    if let Some(id) = record.id {
+        state.db.lock().update_focus(id, record)
+    } else {
+        state.db.lock().insert_focus(record).map(|_| ())
+    }
+}
+
+pub fn start_focus(app: &AppHandle, minutes: i64) -> Result<(), String> {
     let now = Local::now().timestamp_millis();
     let state = app.state::<AppState>();
-    if state.focus.lock().is_some() {
-        end_focus(app, false);
+    let mut active = state.focus.lock();
+    if let Some(previous) = active.take() {
+        let record = focus_record(&previous, false, now);
+        if let Err(error) = persist_focus_record(&state, &record) {
+            *active = Some(previous);
+            return Err(error);
+        }
     }
-    *state.focus.lock() = Some(focus::FocusSession::new(now, minutes));
+    let mut session = focus::FocusSession::new(now, minutes);
+    let record = db::FocusRecord {
+        id: None,
+        start: now,
+        end: now + session.planned_ms,
+        planned_ms: session.planned_ms,
+        drift_ms: 0,
+        completed: false,
+        status: "active".into(),
+        updated_at_ms: Some(now),
+        recovered: false,
+        recovery_gap_ms: 0,
+    };
+    session.db_id = Some(state.db.lock().insert_focus(&record)?);
+    session.last_checkpoint_ms = now;
+    *active = Some(session);
+    drop(active);
     refresh_tray(app);
+    Ok(())
 }
 
 
-pub fn end_focus(app: &AppHandle, completed: bool) {
+pub fn end_focus(app: &AppHandle, completed: bool) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let Some(f) = state.focus.lock().take() else { return };
+    let mut active = state.focus.lock();
+    let Some(f) = active.as_ref() else { return Ok(()) };
     let now = Local::now().timestamp_millis();
-    let end = if completed { f.end } else { now.min(f.end) };
-
-    if end - f.start >= 60_000 {
-        let _ = state.db.lock().insert_focus(&db::FocusRecord { start: f.start, end, planned_ms: f.planned_ms, drift_ms: f.drift_ms, completed });
-    }
+    let record = focus_record(f, completed, now);
+    persist_focus_record(&state, &record)?;
+    let f = active.take().unwrap();
+    drop(active);
     if completed && state.settings.lock().notifications {
         let on_task = 100 - (f.drift_ms * 100 / f.planned_ms.max(1));
         let tr = state.tr();
@@ -278,17 +332,44 @@ pub fn end_focus(app: &AppHandle, completed: bool) {
             .show();
     }
     refresh_tray(app);
+    Ok(())
 }
 
 fn focus_tick(app: &AppHandle, now: i64) {
     let state = app.state::<AppState>();
-    if state.focus.lock().is_none() {
-        return;
-    }
     let (distracting, what) = state.current_is_distracting().unwrap_or((false, String::new()));
-    let event = state.focus.lock().as_mut().and_then(|f| f.tick(now, distracting).map(|e| (e, f.end)));
+    let event = {
+        let mut active = state.focus.lock();
+        let Some(focus) = active.as_mut() else { return };
+        let event = focus.tick(now, distracting).map(|event| (event, focus.end));
+        if let Some(id) = focus.db_id {
+            if now.saturating_sub(focus.last_checkpoint_ms) >= 5_000 {
+                let rec = db::FocusRecord {
+                    id: Some(id),
+                    start: focus.start,
+                    end: now.min(focus.end),
+                    planned_ms: focus.planned_ms,
+                    drift_ms: focus.drift_ms,
+                    completed: false,
+                    status: "active".into(),
+                    updated_at_ms: Some(now),
+                    recovered: focus.recovered,
+                    recovery_gap_ms: focus.recovery_gap_ms,
+                };
+                match state.db.lock().update_focus(id, &rec) {
+                    Ok(()) => focus.last_checkpoint_ms = now,
+                    Err(error) => eprintln!("[ztally] focus checkpoint failed: {error}"),
+                }
+            }
+        }
+        event
+    };
     match event {
-        Some((focus::FocusEvent::Done, _)) => end_focus(app, true),
+        Some((focus::FocusEvent::Done, _)) => {
+            if let Err(error) = end_focus(app, true) {
+                eprintln!("[ztally] focus completion failed: {error}");
+            }
+        }
         Some((focus::FocusEvent::Drift { run_ms }, end)) if state.settings.lock().notifications => {
             let tr = state.tr();
             let _ = app
@@ -390,11 +471,27 @@ pub fn run() {
     let paused: i64 = db.kv("paused_until").and_then(|v| v.parse().ok()).unwrap_or(0);
     let rules = db.rules().unwrap_or_default();
     let categories = db.categories().unwrap_or_default();
+    let active_focus = db.active_focus().unwrap_or_default();
     let db = Arc::new(Mutex::new(db));
     let bridge = Bridge::default();
     let backend = tracker::detect();
     eprintln!("[ztally] backend: {} (ok: {}){}", backend.info.label, backend.info.ok, backend.info.note.as_deref().map(|n| format!(" - {n}")).unwrap_or_default());
 
+    let now = Local::now().timestamp_millis();
+    let focus = active_focus.map(|rec| {
+        let last_observed = rec.updated_at_ms.unwrap_or(rec.start);
+        let gap = now.saturating_sub(last_observed).max(0);
+        let mut session = focus::FocusSession::new(rec.start, rec.planned_ms / 60_000);
+        session.db_id = rec.id;
+        session.end = rec.end.max(rec.start + rec.planned_ms);
+        session.drift_ms = rec.drift_ms;
+        session.drift_run_ms = rec.drift_ms;
+        session.last_checkpoint_ms = now;
+        session.recovered = true;
+        session.recovery_gap_ms = rec.recovery_gap_ms.saturating_add(gap);
+        session.resume_at(now);
+        session
+    });
     let state = AppState {
         db: db.clone(),
         engine: Arc::new(Mutex::new(Engine::new(db.clone(), bridge.clone()))),
@@ -406,7 +503,7 @@ pub fn run() {
         i18n: Mutex::new(Arc::new(i18n::I18n::new(&settings.language))),
         kinds: Mutex::new(categories.into_iter().map(|c| (c.id, c.kind)).collect()),
         notified: Default::default(),
-        focus: Mutex::new(None),
+        focus: Mutex::new(focus),
         db_path: db_path.to_string_lossy().into_owned(),
     };
     let start_hidden = std::env::args().any(|a| a == "--hidden");
@@ -427,15 +524,24 @@ pub fn run() {
             }
             let st = handle.state::<AppState>();
             let (engine, settings, paused) = (st.engine.clone(), st.settings.clone(), st.paused_until.clone());
-            let h2 = handle.clone();
+            let focus_handle = handle.clone();
+            let tick_handle = handle.clone();
             std::thread::Builder::new().name("ztally-tracker".into()).spawn(move || {
-                tracker::run(backend, tracker::audio_source(), engine, settings, paused, move |now, minute| {
-                    focus_tick(&h2, now);
-                    if minute {
-                        refresh_tray(&h2);
-                        check_goals(&h2);
-                    }
-                });
+                tracker::run(
+                    backend,
+                    tracker::audio_source(),
+                    engine,
+                    settings,
+                    paused,
+                    move || focus_handle.state::<AppState>().focus.lock().is_some(),
+                    move |now, minute| {
+                        focus_tick(&tick_handle, now);
+                        if minute {
+                            refresh_tray(&tick_handle);
+                            check_goals(&tick_handle);
+                        }
+                    },
+                );
             })?;
 
             if !start_hidden || !st.settings.lock().onboarded {
@@ -450,7 +556,9 @@ pub fn run() {
 
         RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
         RunEvent::Exit => {
-            end_focus(app, false);
+            if let Err(error) = end_focus(app, false) {
+                eprintln!("[ztally] focus finalization failed: {error}");
+            }
             app.state::<AppState>().engine.lock().shutdown();
         }
         _ => {}

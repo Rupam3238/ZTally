@@ -13,6 +13,14 @@ type R<T> = Result<T, String>;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FocusSessionReport {
+    session: crate::db::FocusRecord,
+    reconstruction: crate::reconstruct::ReconstructedSession,
+    reliability: crate::reconstruct::ReliabilityAssessment,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Status {
     backend: BackendInfo,
     current: Current,
@@ -222,18 +230,34 @@ fn pause(app: AppHandle, until: i64) {
 }
 
 #[tauri::command]
-fn focus_start(app: AppHandle, minutes: i64) {
-    crate::start_focus(&app, minutes);
+fn focus_start(app: AppHandle, minutes: i64) -> R<()> {
+    crate::start_focus(&app, minutes)
 }
 
 #[tauri::command]
-fn focus_stop(app: AppHandle) {
-    crate::end_focus(&app, false);
+fn focus_stop(app: AppHandle) -> R<()> {
+    crate::end_focus(&app, false)
 }
 
 #[tauri::command]
 fn focus_history(st: State<AppState>, start: i64, end: i64) -> R<Vec<crate::db::FocusRecord>> {
     st.db.lock().focus_in(start, end)
+}
+
+#[tauri::command]
+fn focus_sessions(st: State<AppState>) -> R<Vec<crate::db::FocusRecord>> {
+    st.db.lock().focus_sessions()
+}
+
+#[tauri::command]
+fn focus_session_report(st: State<AppState>, id: i64) -> R<FocusSessionReport> {
+    st.engine.lock().flush();
+    let db = st.db.lock();
+    let session = db.focus_by_id(id)?.ok_or_else(|| format!("focus session {id} not found"))?;
+    let spans = db.spans_in(session.start, session.end)?;
+    let reconstruction = crate::reconstruct::reconstruct_session(session.start, session.end, &spans, session.recovery_gap_ms);
+    let reliability = crate::reconstruct::assess_reliability(&reconstruction);
+    Ok(FocusSessionReport { session, reconstruction, reliability })
 }
 
 #[tauri::command]
@@ -387,6 +411,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         focus_start,
         focus_stop,
         focus_history,
+        focus_sessions,
+        focus_session_report,
         apps,
         domains,
         rename_app,

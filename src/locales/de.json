@@ -203,6 +203,7 @@
   },
   "nav": {
     "calendar": "Kalender",
+    "focusHistory": "Fokusverlauf",
     "goals": "Ziele",
     "main": "Hauptmenü",
     "report": "Beleg",
@@ -608,6 +609,7 @@
   },
   "titles": {
     "calendar": "Kalender",
+    "focusHistory": "Fokusverlauf",
     "goals": "Ziele",
     "report": "Der Beleg",
     "rules": "Kategorien & Regeln",
@@ -659,7 +661,7 @@
       "try": "Probier's: Drück Strg+K."
     },
     "rail": {
-      "body": "Woche, Kalender, Beleg, Ziele und Kategorien findest du in der Seitenleiste. Die Tasten 1–7 springen direkt dorthin.",
+      "body": "Woche, Kalender, Beleg, Fokusverlauf, Ziele und Kategorien findest du in der Seitenleiste. Die Tasten 1–8 springen direkt dorthin.",
       "title": "Alles andere",
       "try": "Probier's: Fahr über die Seitenleiste."
     },

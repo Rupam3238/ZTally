@@ -203,6 +203,7 @@
   },
   "nav": {
     "calendar": "Calendrier",
+    "focusHistory": "Historique de concentration",
     "goals": "Objectifs",
     "main": "Principal",
     "report": "Ticket",
@@ -608,6 +609,7 @@
   },
   "titles": {
     "calendar": "Calendrier",
+    "focusHistory": "Historique de concentration",
     "goals": "Objectifs",
     "report": "Le ticket",
     "rules": "Catégories et règles",
@@ -659,7 +661,7 @@
       "try": "Essayez : appuyez sur Ctrl+K."
     },
     "rail": {
-      "body": "Semaine, Calendrier, Ticket, Objectifs et Catégories sont dans la barre latérale. Les touches 1 à 7 y mènent directement.",
+      "body": "Semaine, Calendrier, Ticket, Historique de concentration, Objectifs et Catégories sont dans la barre latérale. Les touches 1 à 8 y mènent directement.",
       "title": "Tout le reste",
       "try": "Essayez : survolez la barre latérale."
     },

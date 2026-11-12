@@ -50,14 +50,20 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- v2
 CREATE TABLE IF NOT EXISTS focus_sessions (
-    id         INTEGER PRIMARY KEY,
-    start_ms   INTEGER NOT NULL,
-    end_ms     INTEGER NOT NULL,
-    planned_ms INTEGER NOT NULL,
-    drift_ms   INTEGER NOT NULL DEFAULT 0,
-    completed  INTEGER NOT NULL DEFAULT 0
+    id               INTEGER PRIMARY KEY,
+    start_ms         INTEGER NOT NULL,
+    end_ms           INTEGER,
+    planned_ms       INTEGER NOT NULL,
+    drift_ms         INTEGER NOT NULL DEFAULT 0,
+    completed        INTEGER NOT NULL DEFAULT 0,
+    status           TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('active', 'completed', 'ended_early', 'interrupted')),
+    updated_at_ms    INTEGER,
+    recovered        INTEGER NOT NULL DEFAULT 0,
+    recovery_gap_ms  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS focus_start ON focus_sessions(start_ms);
+CREATE INDEX IF NOT EXISTS focus_status ON focus_sessions(status);
+CREATE UNIQUE INDEX IF NOT EXISTS focus_single_active ON focus_sessions(status) WHERE status = 'active';
 
 -- v3: media playing while another window is focused (never part of screen-time totals)
 CREATE TABLE IF NOT EXISTS audio_spans (
