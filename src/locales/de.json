@@ -114,15 +114,14 @@
   },
   "focusReport": {
     "again": "Noch {min} Minuten",
-    "clean": "Nichts. Eine saubere Sitzung.",
     "completed": "{time}, abgeschlossen",
     "done": "Fertig",
     "endedEarly": "{time}, vorzeitig beendet",
     "nothing": "Nichts aufgezeichnet.",
-    "onTask": "bei der Sache",
-    "pulledAway": "Abgelenkt durch",
-    "title": "Bericht zur Fokussitzung",
-    "workedIn": "Gearbeitet in"
+    "noTransitions": "Keine App-Wechsel aufgezeichnet.",
+    "recentTransitions": "Letzte App-Wechsel",
+    "topApplications": "Am häufigsten verwendete Apps",
+    "title": "Bericht zur Fokussitzung"
   },
   "goals": {
     "added": "Ziel hinzugefügt. ZTally meldet sich, wenn du nah dran bist.",

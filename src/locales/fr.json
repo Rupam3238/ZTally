@@ -114,15 +114,14 @@
   },
   "focusReport": {
     "again": "Encore {min} minutes",
-    "clean": "Rien. Une session impeccable.",
     "completed": "{time}, terminée",
     "done": "Terminé",
     "endedEarly": "{time}, arrêtée plus tôt",
     "nothing": "Rien d'enregistré.",
-    "onTask": "sur la tâche",
-    "pulledAway": "Distrait par",
-    "title": "Bilan de la session de concentration",
-    "workedIn": "Travaillé dans"
+    "noTransitions": "Aucune transition entre applications enregistrée.",
+    "recentTransitions": "Transitions récentes entre applications",
+    "topApplications": "Applications les plus utilisées",
+    "title": "Bilan de la session de concentration"
   },
   "goals": {
     "added": "Objectif ajouté. ZTally vous préviendra quand vous approcherez.",

@@ -74,6 +74,7 @@ pub struct ReconstructedSession {
     pub observed_ms: i64,
     pub afk_ms: Option<i64>,
     pub ambiguous_ms: i64,
+    pub system_ui_ms: i64,
     pub untracked_ms: i64,
     pub uncertain_ms: i64,
     pub recovery_gap_ms: i64,
@@ -119,6 +120,59 @@ fn covered_duration(intervals: &[(i64, i64)]) -> i64 {
         .into_iter()
         .map(|(s, e)| e.saturating_sub(s))
         .sum()
+}
+
+fn subtract_intervals(start: i64, end: i64, covered: &[(i64, i64)]) -> Vec<(i64, i64)> {
+    let mut segments = Vec::new();
+    let mut cursor = start;
+    for (covered_start, covered_end) in covered {
+        if *covered_end <= cursor {
+            continue;
+        }
+        if *covered_start >= end {
+            break;
+        }
+        if *covered_start > cursor {
+            segments.push((cursor, (*covered_start).min(end)));
+        }
+        cursor = cursor.max(*covered_end);
+        if cursor >= end {
+            break;
+        }
+    }
+    if cursor < end {
+        segments.push((cursor, end));
+    }
+    segments
+}
+
+fn is_desktop_shell_app_key(app_key: &str) -> bool {
+    let key = app_key.trim();
+    if key.is_empty() {
+        return false;
+    }
+    let normalized = key.to_ascii_lowercase();
+    matches!(
+        normalized.as_str(),
+        "plasmashell"
+            | "plasmawindowed"
+            | "krunner"
+            | "kglobalaccel5"
+            | "kded5"
+            | "ksmserver"
+            | "ksplashqml"
+            | "org.kde.plasmashell"
+            | "org.kde.plasmawindowed"
+            | "org.kde.krunner"
+            | "org.kde.kglobalaccel5"
+            | "org.kde.kded5"
+            | "org.kde.ksmserver"
+            | "org.kde.ksplashqml"
+            | "kwin"
+            | "kwin_x11"
+            | "kwin_wayland"
+            | "org.kde.kwin"
+    )
 }
 
 fn uncovered_segments(
@@ -181,10 +235,26 @@ pub fn reconstruct_session(
     }
     observations.sort_by_key(|obs| obs.start_ms);
 
+    let system_ui_covered = merged_intervals(
+        &observations
+            .iter()
+            .filter(|obs| !obs.afk && is_desktop_shell_app_key(&obs.app_key))
+            .map(|obs| (obs.start_ms, obs.end_ms))
+            .collect::<Vec<_>>(),
+    );
+    let system_ui_ms = covered_duration(&system_ui_covered);
+
     let mut events = Vec::new();
     for observation in &observations {
-        events.push((observation.start_ms, observation.app_key.clone(), observation.afk, 1i8));
-        events.push((observation.end_ms, observation.app_key.clone(), observation.afk, -1i8));
+        if !observation.afk && is_desktop_shell_app_key(&observation.app_key) {
+            continue;
+        }
+        for (start_ms, end_ms) in
+            subtract_intervals(observation.start_ms, observation.end_ms, &system_ui_covered)
+        {
+            events.push((start_ms, observation.app_key.clone(), observation.afk, 1i8));
+            events.push((end_ms, observation.app_key.clone(), observation.afk, -1i8));
+        }
     }
     events.sort_by_key(|event| (event.0, event.3));
 
@@ -318,6 +388,7 @@ pub fn reconstruct_session(
         observed_ms,
         afk_ms,
         ambiguous_ms,
+        system_ui_ms,
         untracked_ms,
         uncertain_ms,
         recovery_gap_ms,
@@ -694,5 +765,110 @@ mod tests {
         let rec = reconstruct_session(0, 10_000, &rows, 3_000);
         let report = assess_reliability(&rec);
         assert!(report.observation_quality > 0.4);
+    }
+
+    #[test]
+    fn plasma_shell_time_is_excluded_from_app_visits_and_transitions() {
+        let rows = vec![
+            span(0, 2_000, "firefox", None, false),
+            span(2_000, 4_000, "plasmashell", None, false),
+            span(4_000, 6_000, "code", None, false),
+        ];
+        let rec = reconstruct_session(0, 6_000, &rows, 0);
+        assert_eq!(rec.app_visits.len(), 2);
+        assert_eq!(rec.app_visits[0].app_key, "firefox");
+        assert_eq!(rec.app_visits[1].app_key, "code");
+        assert_eq!(rec.transitions.len(), 1);
+        assert_eq!(rec.transitions[0].from_app, "firefox");
+        assert_eq!(rec.transitions[0].to_app, "code");
+        assert_eq!(rec.system_ui_ms, 2_000);
+        assert_eq!(rec.app_totals.get("firefox"), Some(&2_000));
+        assert_eq!(rec.app_totals.get("code"), Some(&2_000));
+    }
+
+    #[test]
+    fn consecutive_plasma_shell_observations_do_not_create_app_visits() {
+        let rows = vec![
+            span(0, 1_000, "firefox", None, false),
+            span(1_000, 3_000, "plasmashell", None, false),
+            span(3_000, 5_000, "plasmashell", None, false),
+            span(5_000, 7_000, "code", None, false),
+        ];
+        let rec = reconstruct_session(0, 7_000, &rows, 0);
+        assert_eq!(rec.app_visits.len(), 2);
+        assert_eq!(rec.system_ui_ms, 4_000);
+        assert_eq!(rec.transitions.len(), 1);
+        assert_eq!(rec.untracked_ms, 0);
+    }
+
+    #[test]
+    fn overlapping_plasma_shell_masks_app_dwell_without_changing_coverage() {
+        let rows = vec![
+            span(0, 6_000, "firefox", None, false),
+            span(2_000, 4_000, "plasmashell", None, false),
+        ];
+        let rec = reconstruct_session(0, 6_000, &rows, 0);
+        assert_eq!(rec.system_ui_ms, 2_000);
+        assert_eq!(rec.app_totals.get("firefox"), Some(&4_000));
+        assert_eq!(rec.dwell_time_ms, 4_000);
+        assert_eq!(rec.app_visits.len(), 2);
+        assert_eq!(
+            (rec.app_visits[0].start_ms, rec.app_visits[0].end_ms),
+            (0, 2_000)
+        );
+        assert_eq!(
+            (rec.app_visits[1].start_ms, rec.app_visits[1].end_ms),
+            (4_000, 6_000)
+        );
+        assert_eq!(rec.observed_ms, 6_000);
+        assert_eq!(rec.untracked_ms, 0);
+        assert!(rec.transitions.is_empty());
+    }
+
+    #[test]
+    fn shell_observations_at_session_boundaries_are_clipped_and_not_app_dwell() {
+        let rows = vec![
+            span(0, 2_500, "plasmashell", None, false),
+            span(1_000, 6_000, "firefox", None, false),
+            span(4_500, 7_000, "plasmashell", None, false),
+        ];
+        let rec = reconstruct_session(1_000, 6_000, &rows, 0);
+        assert_eq!(rec.system_ui_ms, 3_000);
+        assert_eq!(rec.app_totals.get("firefox"), Some(&2_000));
+        assert_eq!(rec.dwell_time_ms, 2_000);
+        assert_eq!(rec.app_visits.len(), 1);
+        assert_eq!(
+            (rec.app_visits[0].start_ms, rec.app_visits[0].end_ms),
+            (2_500, 4_500)
+        );
+        assert_eq!(rec.observed_ms, 5_000);
+        assert_eq!(rec.untracked_ms, 0);
+    }
+
+    #[test]
+    fn shell_time_is_not_classified_as_untracked_or_missing_evidence() {
+        let rows = vec![
+            span(0, 2_000, "firefox", None, false),
+            span(2_000, 4_000, "plasmashell", None, false),
+            span(4_000, 6_000, "firefox", None, false),
+        ];
+        let rec = reconstruct_session(0, 6_000, &rows, 0);
+        assert_eq!(rec.untracked_ms, 0);
+        assert_eq!(rec.system_ui_ms, 2_000);
+        assert_eq!(rec.observed_ms, 6_000);
+        assert!(assess_reliability(&rec).findings.iter().all(|f| f.code != "untracked_time"));
+    }
+
+    #[test]
+    fn ordinary_kde_apps_remain_included() {
+        let rows = vec![
+            span(0, 2_000, "dolphin", None, false),
+            span(2_000, 4_000, "plasmashell", None, false),
+            span(4_000, 6_000, "kate", None, false),
+        ];
+        let rec = reconstruct_session(0, 6_000, &rows, 0);
+        assert_eq!(rec.app_totals.get("dolphin"), Some(&2_000));
+        assert_eq!(rec.app_totals.get("kate"), Some(&2_000));
+        assert_eq!(rec.system_ui_ms, 2_000);
     }
 }

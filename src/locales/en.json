@@ -114,15 +114,14 @@
   },
   "focusReport": {
     "again": "Another {min} minutes",
-    "clean": "Nothing. A clean session.",
     "completed": "{time}, completed",
     "done": "Done",
     "endedEarly": "{time}, ended early",
     "nothing": "Nothing recorded.",
-    "onTask": "on task",
-    "pulledAway": "Pulled away by",
-    "title": "Focus session report",
-    "workedIn": "Worked in"
+    "noTransitions": "No application transitions recorded.",
+    "recentTransitions": "Recent application transitions",
+    "topApplications": "Top applications",
+    "title": "Focus session report"
   },
   "goals": {
     "added": "Goal added. ZTally will nudge you when you get close.",

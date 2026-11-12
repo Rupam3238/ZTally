@@ -178,6 +178,7 @@ export interface ReconstructedSession {
   observedMs: number;
   afkMs: number | null;
   ambiguousMs: number;
+  systemUiMs: number;
   untrackedMs: number;
   uncertainMs: number;
   recoveryGapMs: number;

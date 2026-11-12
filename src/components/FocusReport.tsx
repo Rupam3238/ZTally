@@ -2,22 +2,29 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../lib/i18n";
-import { api, type FocusRecord, type LedgerItem, type RangeView } from "../lib/ipc";
+import { api, type FocusRecord, type FocusSessionReport } from "../lib/ipc";
 import { useStore } from "../lib/store";
 import { fmtDur } from "../lib/time";
-import { Glyph } from "./bits";
 import { Icon } from "./Icon";
 
 interface Report {
   rec: FocusRecord;
-  range: RangeView;
+  report: FocusSessionReport;
+}
+
+function resolveAppName(appKey: string, labels: Map<string, string>): string {
+  const label = labels.get(appKey)?.trim();
+  if (label) return label;
+  const key = appKey.trim();
+  return key || "Unknown app";
 }
 
 export function FocusReport() {
-  const { status, catById, toast } = useStore();
+  const { status, toast } = useStore();
   const t = useT();
   const prev = useRef(status?.focus ?? null);
   const [report, setReport] = useState<Report | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     const was = prev.current;
@@ -25,26 +32,47 @@ export function FocusReport() {
     prev.current = now;
     if (!was || now) return;
 
+    let alive = true;
     (async () => {
       const recs = await api.focusHistory(was.start, Date.now() + 1000);
       const rec = recs.find((r) => r.start === was.start);
-      if (!rec || rec.end - rec.start < 60_000) return;
-      const range = await api.range([[rec.start, rec.end]]);
-      setReport({ rec, range });
+      if (!rec || rec.id == null || rec.end - rec.start < 60_000) return;
+      const sessionReport = await api.focusSessionReport(rec.id);
+      if (alive) setReport({ rec, report: sessionReport });
     })().catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [status?.focus]);
 
   if (!report) return null;
-  const { rec, range } = report;
-  const s = range.summary;
-  const length = rec.end - rec.start;
-  const onTask = Math.max(0, Math.min(100, Math.round(((length - rec.driftMs) / length) * 100)));
-  const kind = (it: LedgerItem) => (it.cat != null ? catById.get(it.cat)?.kind : undefined);
-  const worked = s.apps.filter((a) => a.mixed || kind(a) !== "distracting").slice(0, 3);
-  const pulled = [...s.domains, ...s.apps.filter((a) => !a.mixed)]
-    .filter((i) => kind(i) === "distracting")
+  const { rec, report: sessionReport } = report;
+  const reconstruction = sessionReport.reconstruction;
+  const reliability = sessionReport.reliability;
+  const labels = new Map<string, string>();
+  for (const observation of reconstruction.observations) {
+    if (!observation.afk && !labels.has(observation.appKey) && observation.display.trim()) {
+      labels.set(observation.appKey, observation.display.trim());
+    }
+  }
+
+  const appEntries = Object.entries(reconstruction.appTotals)
+    .map(([key, ms]) => ({ key, label: resolveAppName(key, labels), ms }))
     .sort((a, b) => b.ms - a.ms)
     .slice(0, 3);
+
+  const recentTransitions = reconstruction.transitions
+    .slice()
+    .sort((a, b) => b.atMs - a.atMs)
+    .slice(0, 3)
+    .map((transition, index) => ({
+      key: `${transition.atMs}-${index}`,
+      from: resolveAppName(transition.fromApp, labels),
+      to: resolveAppName(transition.toApp, labels),
+      atMs: transition.atMs,
+    }));
+
+  const length = rec.end - rec.start;
   const minutes = Math.round(rec.plannedMs / 60_000);
 
   return (
@@ -57,18 +85,20 @@ export function FocusReport() {
             </div>
             <div className="fr-sub">{t(rec.completed ? "focusReport.completed" : "focusReport.endedEarly", { time: fmtDur(length) })}</div>
           </div>
-          <div className={`fr-score ${onTask >= 85 ? "good" : onTask >= 60 ? "ok" : "bad"}`}>
-            <b>{onTask}%</b>
-            <span>{t("focusReport.onTask")}</span>
-          </div>
+          <button
+            className={`fr-score ${reliability.status.includes("high") ? "good" : reliability.status.includes("mixed") ? "ok" : reliability.status.includes("low") ? "bad" : "neutral"}`}
+            onClick={() => setShowDetails(true)}
+            style={{ border: "1px solid var(--line)", borderRadius: 999, padding: "8px 12px", cursor: "pointer" }}
+          >
+            <b>{reliability.status}</b>
+          </button>
         </div>
         <div className="fr-cols">
           <div>
-            <h3>{t("focusReport.workedIn")}</h3>
-            {worked.length ? (
-              worked.map((a) => (
+            <h3>{t("focusReport.topApplications")}</h3>
+            {appEntries.length ? (
+              appEntries.map((a) => (
                 <div key={a.key} className="fr-row">
-                  <Glyph label={a.label} cat={a.mixed || a.cat == null ? null : catById.get(a.cat)} size={22} />
                   <span className="grow ellipsis">{a.label}</span>
                   <span className="mono">{fmtDur(a.ms)}</span>
                 </div>
@@ -78,22 +108,29 @@ export function FocusReport() {
             )}
           </div>
           <div>
-            <h3>{t("focusReport.pulledAway")}</h3>
-            {pulled.length ? (
-              pulled.map((a) => (
-                <div key={a.key} className="fr-row">
-                  <Glyph label={a.label} cat={a.cat != null ? catById.get(a.cat) : null} size={22} site={a.key.includes(".")} />
-                  <span className="grow ellipsis">{a.label}</span>
-                  <span className="mono">{fmtDur(a.ms)}</span>
+            <h3>{t("focusReport.recentTransitions")}</h3>
+            {recentTransitions.length ? (
+              recentTransitions.map((transition) => (
+                <div key={transition.key} className="fr-row">
+                  <span className="grow ellipsis">{transition.from} → {transition.to}</span>
+                  <span className="mono">{new Date(transition.atMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
               ))
             ) : (
-              <p className="fr-clean">
-                <Icon name="check" size={14} /> {t("focusReport.clean")}
-              </p>
+              <p className="dim small">{t("focusReport.noTransitions")}</p>
             )}
           </div>
         </div>
+
+        <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
+          <div style={{ color: "var(--muted)", fontSize: 12 }}>
+            {fmtDur(reconstruction.observedMs)} observed · {fmtDur(reconstruction.systemUiMs)} system UI · {fmtDur(reconstruction.untrackedMs)} untracked
+          </div>
+          <div style={{ color: "var(--muted)", fontSize: 12 }}>
+            {reconstruction.transitions.length} application transitions · {reconstruction.shortVisits} short visits · {fmtDur(reconstruction.medianDwellMs)} median dwell
+          </div>
+        </div>
+
         <div className="fr-actions">
           <button className="btn ghost" onClick={() => setReport(null)}>
             {t("focusReport.done")}
@@ -110,6 +147,34 @@ export function FocusReport() {
           </button>
         </div>
       </div>
+
+      {showDetails && (
+        <div className="modal-backdrop" onMouseDown={() => setShowDetails(false)}>
+          <div className="modal" onMouseDown={(event) => event.stopPropagation()} style={{ maxWidth: 560, width: "min(560px, calc(100vw - 32px))" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <h3 style={{ margin: 0 }}>Reliability details</h3>
+              <button className="btn ghost" onClick={() => setShowDetails(false)}>Close</button>
+            </div>
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+              <div style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 10 }}>
+                <strong>{reliability.status}</strong>
+                <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12 }}>
+                  Coverage {Math.round(reliability.coverage * 100)}% · Observation quality {Math.round(reliability.observationQuality * 100)}% · Tracking integrity {Math.round(reliability.trackingIntegrity * 100)}%
+                </div>
+              </div>
+              {reliability.findings.length ? reliability.findings.map((finding) => (
+                <div key={finding.code} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                    <strong>{finding.code}</strong>
+                    <span style={{ fontSize: 11, textTransform: "uppercase", opacity: 0.8 }}>{finding.severity}</span>
+                  </div>
+                  <div>{finding.summary}</div>
+                </div>
+              )) : <div style={{ opacity: 0.7 }}>No reliability findings for this session.</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

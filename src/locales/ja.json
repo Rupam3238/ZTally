@@ -113,15 +113,14 @@
   },
   "focusReport": {
     "again": "もう {min} 分",
-    "clean": "なし。きれいなセッションでした。",
     "completed": "{time}・完了",
     "done": "閉じる",
     "endedEarly": "{time}・途中で終了",
     "nothing": "記録なし。",
-    "onTask": "集中率",
-    "pulledAway": "脱線の原因",
-    "title": "集中セッションのレポート",
-    "workedIn": "作業したアプリ"
+    "noTransitions": "アプリの切り替えは記録されていません。",
+    "recentTransitions": "最近のアプリ切り替え",
+    "topApplications": "使用時間の長いアプリ",
+    "title": "集中セッションのレポート"
   },
   "goals": {
     "added": "目標を追加しました。近づいたら ZTally がお知らせします。",
