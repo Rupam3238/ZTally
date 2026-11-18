@@ -130,11 +130,18 @@
     "noMatchingSessions": "No sessions meet this duration."
   },
   "switchHistory": {
+    "allTime": "All Time",
     "close": "Close",
+    "customRange": "Date Range",
     "empty": "No application switches recorded.",
     "error": "Could not load application switch history.",
+    "from": "From",
+    "invalidRange": "Choose a valid date range.",
     "loading": "Loading application switch history…",
     "open": "Open application switch history",
+    "period": "Switch history period",
+    "today": "Today",
+    "to": "To",
     "title": "Application switch history"
   },
   "goals": {

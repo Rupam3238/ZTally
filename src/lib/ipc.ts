@@ -344,7 +344,8 @@ export const api = {
   focusStop: () => invoke<void>("focus_stop"),
   focusSessions: () => invoke<FocusRecord[]>("focus_sessions"),
   focusSessionReport: (id: number) => invoke<FocusSessionReport>("focus_session_report", { id }),
-  switchHistory: () => invoke<SwitchHistoryEntry[]>("switch_history"),
+  switchHistory: (start: number | null = null, end: number | null = null) =>
+    invoke<SwitchHistoryEntry[]>("switch_history", { start, end }),
   focusHistory: (start: number, end: number) => invoke<FocusRecord[]>("focus_history", { start, end }),
   apps: () => invoke<AppEntry[]>("apps"),
   domains: () => invoke<[string, number][]>("domains"),

@@ -129,11 +129,18 @@
     "noMatchingSessions": "この時間を満たすセッションはありません。"
   },
   "switchHistory": {
+    "allTime": "全期間",
     "close": "閉じる",
+    "customRange": "期間を指定",
     "empty": "アプリの切り替えは記録されていません。",
     "error": "アプリ切り替え履歴を読み込めませんでした。",
+    "from": "開始日",
+    "invalidRange": "有効な日付範囲を選択してください。",
     "loading": "アプリ切り替え履歴を読み込み中…",
     "open": "アプリ切り替え履歴を開く",
+    "period": "アプリ切り替え履歴の期間",
+    "today": "今日",
+    "to": "終了日",
     "title": "アプリ切り替え履歴"
   },
   "goals": {

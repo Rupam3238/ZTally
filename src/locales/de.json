@@ -130,11 +130,18 @@
     "noMatchingSessions": "Keine Sitzung erfüllt diese Mindestdauer."
   },
   "switchHistory": {
+    "allTime": "Gesamter Zeitraum",
     "close": "Schließen",
+    "customRange": "Datumsbereich",
     "empty": "Keine App-Wechsel aufgezeichnet.",
     "error": "Der Verlauf der App-Wechsel konnte nicht geladen werden.",
+    "from": "Von",
+    "invalidRange": "Wähle einen gültigen Datumsbereich.",
     "loading": "App-Wechsel werden geladen…",
     "open": "Verlauf der App-Wechsel öffnen",
+    "period": "Zeitraum des App-Wechselverlaufs",
+    "today": "Heute",
+    "to": "Bis",
     "title": "Verlauf der App-Wechsel"
   },
   "goals": {

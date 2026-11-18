@@ -148,9 +148,13 @@ fn range(st: State<AppState>, days: Vec<(i64, i64)>) -> R<RangeView> {
 }
 
 #[tauri::command]
-fn switch_history(st: State<AppState>) -> R<Vec<SwitchHistoryEntry>> {
+fn switch_history(st: State<AppState>, start: Option<i64>, end: Option<i64>) -> R<Vec<SwitchHistoryEntry>> {
     st.engine.lock().flush();
-    let spans = st.db.lock().all_spans()?;
+    let spans = match (start, end) {
+        (Some(start), Some(end)) if end > start => st.db.lock().spans_in(start, end)?,
+        (None, None) => st.db.lock().all_spans()?,
+        _ => return Err("A valid start and end are required for a switch-history range.".into()),
+    };
     let Some(start_ms) = spans.iter().map(|span| span.start).min() else {
         return Ok(Vec::new());
     };

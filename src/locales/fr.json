@@ -130,11 +130,18 @@
     "noMatchingSessions": "Aucune session ne correspond à cette durée."
   },
   "switchHistory": {
+    "allTime": "Depuis toujours",
     "close": "Fermer",
+    "customRange": "Plage de dates",
     "empty": "Aucun changement d’application enregistré.",
     "error": "Impossible de charger l’historique des changements d’application.",
+    "from": "Du",
+    "invalidRange": "Choisissez une plage de dates valide.",
     "loading": "Chargement de l’historique des changements d’application…",
     "open": "Ouvrir l’historique des changements d’application",
+    "period": "Période de l’historique des changements",
+    "today": "Aujourd’hui",
+    "to": "Au",
     "title": "Historique des changements d’application"
   },
   "goals": {

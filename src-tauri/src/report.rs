@@ -331,7 +331,7 @@ pub fn summarize(ctx: &Ctx, rows: &[SpanRow], audio: &[SpanRow], calls: &[SpanRo
         parts.get(1).is_some_and(|second| *second * 5 > total)
     };
     let top_titles = |m: HashMap<&str, i64>| {
-        sorted_totals(m).into_iter().filter(|(t, _)| !t.is_empty()).take(5).map(|(t, ms)| (t.to_string(), ms)).collect()
+        sorted_totals(m).into_iter().filter(|(t, _)| !t.is_empty()).map(|(t, ms)| (t.to_string(), ms)).collect()
     };
     let mut app_items: Vec<LedgerItem> = apps
         .into_iter()
@@ -681,6 +681,28 @@ mod tests {
         assert_eq!(v.summary.productive_ms, 2 * MIN);
         assert_eq!(v.summary.distracting_ms, MIN);
         assert_eq!(v.summary.switches, 1);
+    }
+
+    #[test]
+    fn summary_includes_all_foreground_title_details() {
+        let (classifier, cats) = fixture();
+        let ctx = Ctx::new(&classifier, &cats);
+        let rows: Vec<_> = (0..7)
+            .map(|index| SpanRow {
+                start: index * MIN,
+                end: (index + 1) * MIN,
+                app_key: "firefox".into(),
+                display: "Firefox".into(),
+                title: format!("Title {index}"),
+                domain: Some("example.com".into()),
+                afk: false,
+            })
+            .collect();
+
+        let summary = summarize(&ctx, &rows, &[], &[]);
+        assert_eq!(summary.apps[0].titles.len(), 7);
+        assert_eq!(summary.domains[0].titles.len(), 7);
+        assert_eq!(summary.domains[0].titles.iter().map(|(_, ms)| ms).sum::<i64>(), 7 * MIN);
     }
 
     #[test]

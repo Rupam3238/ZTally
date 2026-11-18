@@ -130,11 +130,18 @@
     "noMatchingSessions": "Nenhuma sessão atende a esta duração."
   },
   "switchHistory": {
+    "allTime": "Todo o período",
     "close": "Fechar",
+    "customRange": "Intervalo de datas",
     "empty": "Nenhuma troca de aplicativo foi registrada.",
     "error": "Não foi possível carregar o histórico de trocas de aplicativo.",
+    "from": "De",
+    "invalidRange": "Escolha um intervalo de datas válido.",
     "loading": "Carregando histórico de trocas de aplicativo…",
     "open": "Abrir histórico de trocas de aplicativo",
+    "period": "Período do histórico de trocas",
+    "today": "Hoje",
+    "to": "Até",
     "title": "Histórico de trocas de aplicativo"
   },
   "goals": {
