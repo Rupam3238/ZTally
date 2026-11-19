@@ -114,13 +114,19 @@
   },
   "focusReport": {
     "again": "Otros {min} minutos",
+    "actualOfPlanned": "{actual} de {planned}",
+    "appSwitches": "Cambios de aplicación",
+    "appTime": "Tiempo en aplicaciones",
     "completed": "{time}, completada",
+    "details": "Detalles de la sesión",
+    "finishedEarlyBy": "{time} antes de lo previsto",
     "done": "Listo",
     "endedEarly": "{time}, terminada antes",
     "nothing": "Nada registrado.",
-    "noTransitions": "No se registraron transiciones entre aplicaciones.",
-    "recentTransitions": "Transiciones recientes entre aplicaciones",
+    "notEnoughData": "Datos insuficientes",
+    "plannedDuration": "{planned} planificados",
     "topApplications": "Aplicaciones más usadas",
+    "typicalAppVisit": "Visita típica a una aplicación",
     "title": "Informe de la sesión de enfoque"
   },
   "focusHistory": {

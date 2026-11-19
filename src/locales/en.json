@@ -114,13 +114,19 @@
   },
   "focusReport": {
     "again": "Another {min} minutes",
+    "actualOfPlanned": "{actual} of {planned}",
+    "appSwitches": "App switches",
+    "appTime": "App time",
     "completed": "{time}, completed",
+    "details": "Session details",
     "done": "Done",
+    "finishedEarlyBy": "{time} before planned",
     "endedEarly": "{time}, ended early",
     "nothing": "Nothing recorded.",
-    "noTransitions": "No application transitions recorded.",
-    "recentTransitions": "Recent application transitions",
+    "notEnoughData": "Not enough data",
+    "plannedDuration": "{planned} planned",
     "topApplications": "Top applications",
+    "typicalAppVisit": "Typical app visit",
     "title": "Focus session report"
   },
   "focusHistory": {

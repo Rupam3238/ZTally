@@ -156,13 +156,18 @@ struct KdeIdle {
     fallback: LogindIdle,
 }
 
+fn screen_saver_idle_ms(idle_seconds: u32) -> Option<u64> {
+    (idle_seconds > 0).then(|| u64::from(idle_seconds).saturating_mul(1_000))
+}
+
 impl IdleSource for KdeIdle {
     fn idle_ms(&mut self) -> Option<u64> {
 
         let r: Option<u32> = Proxy::new(&self.conn, "org.freedesktop.ScreenSaver", "/ScreenSaver", "org.freedesktop.ScreenSaver")
             .ok()
             .and_then(|p| p.call("GetSessionIdleTime", &()).ok());
-        r.map(u64::from).or_else(|| self.fallback.idle_ms())
+        r.and_then(screen_saver_idle_ms)
+            .or_else(|| self.fallback.idle_ms())
     }
 }
 
@@ -200,6 +205,12 @@ pub fn backend() -> Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn screensaver_idle_seconds_convert_to_milliseconds() {
+        assert_eq!(screen_saver_idle_ms(180), Some(180_000));
+        assert_eq!(screen_saver_idle_ms(0), None);
+    }
 
     fn cached(pid: Option<u32>, was_alive: bool) -> Cached {
         Cached { win: RawWindow { title: "t".into(), exe: None, class: Some("charta".into()), pid }, pid_was_alive: was_alive }

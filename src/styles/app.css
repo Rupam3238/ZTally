@@ -3218,6 +3218,58 @@ button.ycell:not(:disabled):hover {
   margin-top: 4px;
 }
 
+.fr-outcome {
+  display: grid;
+  gap: 3px;
+  margin: 18px 0 16px;
+}
+
+.fr-outcome strong {
+  font-size: 15px;
+}
+
+.fr-outcome span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fr-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.fr-metric {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-2);
+}
+
+.fr-metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.fr-metric strong {
+  display: block;
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.fr-apps h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
 .fr-score {
   text-align: right;
   display: flex;
@@ -3284,6 +3336,13 @@ button.ycell:not(:disabled):hover {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  margin-top: 18px;
+}
+
+@media (max-width: 520px) {
+  .fr-metrics {
+    grid-template-columns: 1fr;
+  }
 }
 
 .crash {

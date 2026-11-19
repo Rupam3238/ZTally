@@ -113,13 +113,19 @@
   },
   "focusReport": {
     "again": "もう {min} 分",
+    "actualOfPlanned": "予定 {planned} に対して {actual}",
+    "appSwitches": "アプリ切り替え",
+    "appTime": "アプリ使用時間",
     "completed": "{time}・完了",
+    "details": "セッション詳細",
+    "finishedEarlyBy": "予定より {time} 短縮",
     "done": "閉じる",
     "endedEarly": "{time}・途中で終了",
     "nothing": "記録なし。",
-    "noTransitions": "アプリの切り替えは記録されていません。",
-    "recentTransitions": "最近のアプリ切り替え",
+    "notEnoughData": "データ不足",
+    "plannedDuration": "予定 {planned}",
     "topApplications": "使用時間の長いアプリ",
+    "typicalAppVisit": "通常のアプリ滞在",
     "title": "集中セッションのレポート"
   },
   "focusHistory": {

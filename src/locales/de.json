@@ -114,13 +114,19 @@
   },
   "focusReport": {
     "again": "Noch {min} Minuten",
+    "actualOfPlanned": "{actual} von {planned}",
+    "appSwitches": "App-Wechsel",
+    "appTime": "App-Zeit",
     "completed": "{time}, abgeschlossen",
+    "details": "Sitzungsdetails",
+    "finishedEarlyBy": "{time} vor Ende",
     "done": "Fertig",
     "endedEarly": "{time}, vorzeitig beendet",
     "nothing": "Nichts aufgezeichnet.",
-    "noTransitions": "Keine App-Wechsel aufgezeichnet.",
-    "recentTransitions": "Letzte App-Wechsel",
+    "notEnoughData": "Nicht genug Daten",
+    "plannedDuration": "{planned} geplant",
     "topApplications": "Am häufigsten verwendete Apps",
+    "typicalAppVisit": "Typischer App-Aufenthalt",
     "title": "Bericht zur Fokussitzung"
   },
   "focusHistory": {

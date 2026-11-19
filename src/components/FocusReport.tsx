@@ -61,19 +61,11 @@ export function FocusReport() {
     .sort((a, b) => b.ms - a.ms)
     .slice(0, 3);
 
-  const recentTransitions = reconstruction.transitions
-    .slice()
-    .sort((a, b) => b.atMs - a.atMs)
-    .slice(0, 3)
-    .map((transition, index) => ({
-      key: `${transition.atMs}-${index}`,
-      from: resolveAppName(transition.fromApp, labels),
-      to: resolveAppName(transition.toApp, labels),
-      atMs: transition.atMs,
-    }));
-
   const length = rec.end - rec.start;
   const minutes = Math.round(rec.plannedMs / 60_000);
+  const plannedMinutes = Math.round(rec.plannedMs / 60_000);
+  const remainingMs = Math.max(0, rec.plannedMs - length);
+  const completedEarly = remainingMs > 0 && !rec.completed;
 
   return (
     <div className="modal-backdrop" onMouseDown={() => setReport(null)}>
@@ -83,55 +75,54 @@ export function FocusReport() {
             <div className="fr-kicker">
               <Icon name="bolt" size={14} /> {t("focusReport.title")}
             </div>
-            <div className="fr-sub">{t(rec.completed ? "focusReport.completed" : "focusReport.endedEarly", { time: fmtDur(length) })}</div>
+            <div className="fr-sub">
+              {t(rec.completed ? "focusReport.completed" : "focusReport.endedEarly", { time: fmtDur(length) })}
+            </div>
           </div>
-          <button
-            className={`fr-score ${reliability.status.includes("high") ? "good" : reliability.status.includes("mixed") ? "ok" : reliability.status.includes("low") ? "bad" : "neutral"}`}
-            onClick={() => setShowDetails(true)}
-            style={{ border: "1px solid var(--line)", borderRadius: 999, padding: "8px 12px", cursor: "pointer" }}
-          >
-            <b>{reliability.status}</b>
-          </button>
         </div>
-        <div className="fr-cols">
-          <div>
-            <h3>{t("focusReport.topApplications")}</h3>
-            {appEntries.length ? (
-              appEntries.map((a) => (
-                <div key={a.key} className="fr-row">
-                  <span className="grow ellipsis">{a.label}</span>
-                  <span className="mono">{fmtDur(a.ms)}</span>
-                </div>
-              ))
-            ) : (
-              <p className="dim small">{t("focusReport.nothing")}</p>
-            )}
+        <div className="fr-outcome">
+          <strong>{t(completedEarly ? "focusReport.finishedEarlyBy" : "focusReport.plannedDuration", {
+            time: fmtDur(completedEarly ? remainingMs : rec.plannedMs),
+            planned: fmtDur(rec.plannedMs),
+            actual: fmtDur(length),
+          })}</strong>
+          {plannedMinutes > 0 && (
+            <span>{t("focusReport.actualOfPlanned", { actual: fmtDur(length), planned: fmtDur(rec.plannedMs) })}</span>
+          )}
+        </div>
+        <div className="fr-metrics">
+          <div className="fr-metric">
+            <span>{t("focusReport.appTime")}</span>
+            <strong>{fmtDur(reconstruction.dwellTimeMs)}</strong>
           </div>
-          <div>
-            <h3>{t("focusReport.recentTransitions")}</h3>
-            {recentTransitions.length ? (
-              recentTransitions.map((transition) => (
-                <div key={transition.key} className="fr-row">
-                  <span className="grow ellipsis">{transition.from} → {transition.to}</span>
-                  <span className="mono">{new Date(transition.atMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                </div>
-              ))
-            ) : (
-              <p className="dim small">{t("focusReport.noTransitions")}</p>
-            )}
+          <div className="fr-metric">
+            <span>{t("focusReport.appSwitches")}</span>
+            <strong>{reconstruction.transitions.length}</strong>
+          </div>
+          <div className="fr-metric">
+            <span>{t("focusReport.typicalAppVisit")}</span>
+            <strong>{reconstruction.medianDwellMs > 0 ? fmtDur(reconstruction.medianDwellMs) : t("focusReport.notEnoughData")}</strong>
           </div>
         </div>
 
-        <div style={{ display: "grid", gap: 8, marginTop: 6 }}>
-          <div style={{ color: "var(--muted)", fontSize: 12 }}>
-            {fmtDur(reconstruction.observedMs)} observed · {fmtDur(reconstruction.systemUiMs)} system UI · {fmtDur(reconstruction.untrackedMs)} untracked
-          </div>
-          <div style={{ color: "var(--muted)", fontSize: 12 }}>
-            {reconstruction.transitions.length} application transitions · {reconstruction.shortVisits} short visits · {fmtDur(reconstruction.medianDwellMs)} median dwell
-          </div>
+        <div className="fr-apps">
+          <h3>{t("focusReport.topApplications")}</h3>
+          {appEntries.length ? (
+            appEntries.map((a) => (
+              <div key={a.key} className="fr-row">
+                <span className="grow ellipsis">{a.label}</span>
+                <span className="mono">{fmtDur(a.ms)}</span>
+              </div>
+            ))
+          ) : (
+            <p className="dim small">{t("focusReport.nothing")}</p>
+          )}
         </div>
 
         <div className="fr-actions">
+          <button className="btn ghost" onClick={() => setShowDetails(true)}>
+            {t("focusReport.details")}
+          </button>
           <button className="btn ghost" onClick={() => setReport(null)}>
             {t("focusReport.done")}
           </button>
