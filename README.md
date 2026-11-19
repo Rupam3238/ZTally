@@ -85,7 +85,7 @@ Checksums: [`SHA256SUMS`](https://zsync.eu/ztally/releases/latest/checksums). Al
 | **Passive** | No timers to start. Idle and away time are detected automatically; a video, call or game making sound in front of you doesn't count as away. The lock screen never counts. |
 | **Automatic categories** | Hundreds of built-in rules for apps and sites. Right-click or drag anything onto a category to refile it, and past time repaints instantly. |
 | **Sites, not just "Browser"** | Read from tab titles out of the box, or exact domains with the optional *ZTally Bridge* extension. |
-| **Focus sessions** | 25, 50 or 90 minutes from the dial, the tray or <kbd>Ctrl</kbd>+<kbd>K</kbd>. A minute in a drift app (social, entertainment, games) earns a nudge; the end brings a report: % on task, what you worked in, what pulled you away. |
+| **Focus sessions** | 25, 50 or 90 minutes from the dial, the tray or <kbd>Ctrl</kbd>+<kbd>K</kbd>. A minute in a drift app (social, entertainment, games) earns a nudge; the report summarizes app-window switching and same-window runs without exposing an app-by-app activity trace. |
 | **Goals** | Budgets ("at most 45m of Social a day") and targets ("at least 4h of Deep Work") with progress rings and notifications. |
 | **Receipts & export** | A day, week, month or hand-picked days, itemised like a till slip. Save as PNG, print, or export CSV and JSON. |
 | **Doesn't count itself** | Time spent looking at ZTally isn't tracked (toggle in Settings). |
@@ -131,6 +131,16 @@ Checksums: [`SHA256SUMS`](https://zsync.eu/ztally/releases/latest/checksums). Al
 Also: a **Categories** view with a "sort inbox" of uncategorised apps and sites, a category editor and rules. New users get a short setup (language, privacy, style, extension) and an optional **interactive tour** that spotlights the real UI; some steps only continue once you've tried the thing. Replay it from Settings or the palette.
 
 **Shortcuts:** <kbd>Ctrl</kbd>+<kbd>K</kbd> command palette · <kbd>←</kbd> / <kbd>→</kbd> previous / next day or week · <kbd>T</kbd> today · <kbd>1</kbd>–<kbd>7</kbd> views. Hover the sidebar for labels; the window has its own titlebar (drag it, double-click to maximise).
+
+### Focus-session measures and limits
+
+Focus reports show tracked app-window time, the rate of *confident* changes between foreground apps per tracked hour, the median duration of a same-app run, and the share of the session covered by observations. A personal reference is the median of up to five recent earlier sessions with at least 60% observation coverage; comparisons are withheld until at least three such sessions exist. A switch rate at least 25% higher alongside a same-app run at least 25% shorter is a practical UI flag, not a threshold established by the cited research. It prompts a small personal experiment, not a universal target or a diagnosis.
+
+These are activity proxies, **not measurements of attention, task progress, or productivity**. An app change may or may not be a task switch, and this tracker cannot observe attention residue, intent, or interruption cause. KDE desktop-shell windows are excluded from app-run and switch calculations. Interpretation is informed by:
+
+- Monsell (2003), [“Task switching”](https://doi.org/10.1016/S1364-6613(03)00028-7), *Trends in Cognitive Sciences* 7(3), 134–140.
+- Leroy (2009), [“Why is it so hard to do my work? The challenge of attention residue when switching between work tasks”](https://doi.org/10.1016/j.obhdp.2009.04.002), *Organizational Behavior and Human Decision Processes* 109(2), 168–181.
+- Mark, Gudith & Klocke (2008), [“The cost of interrupted work: more speed and stress”](https://doi.org/10.1145/1357054.1357072), *Proceedings of CHI*, 107–110.
 
 ## Privacy
 

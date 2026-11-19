@@ -91,6 +91,17 @@ pub struct ReconstructedSession {
     pub short_visits: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FocusSessionMetrics {
+    pub tracked_app_ms: i64,
+    pub observed_ms: i64,
+    pub coverage: f64,
+    pub switch_count: usize,
+    pub switches_per_observed_hour: Option<f64>,
+    pub median_app_run_ms: Option<i64>,
+}
+
 fn clip_interval(start: i64, end: i64, session_start: i64, session_end: i64) -> Option<(i64, i64)> {
     let left = start.max(session_start);
     let right = end.min(session_end);
@@ -554,6 +565,30 @@ pub fn assess_reliability(reconstruction: &ReconstructedSession) -> ReliabilityA
     }
 }
 
+pub fn focus_session_metrics(
+    reconstruction: &ReconstructedSession,
+    reliability: &ReliabilityAssessment,
+) -> FocusSessionMetrics {
+    let switch_count = reconstruction
+        .transitions
+        .iter()
+        .filter(|transition| !transition.uncertain)
+        .count();
+    let switches_per_observed_hour = (reconstruction.dwell_time_ms > 0).then(|| {
+        switch_count as f64 * 3_600_000.0 / reconstruction.dwell_time_ms as f64
+    });
+
+    FocusSessionMetrics {
+        tracked_app_ms: reconstruction.dwell_time_ms,
+        observed_ms: reconstruction.observed_ms,
+        coverage: reliability.coverage,
+        switch_count,
+        switches_per_observed_hour,
+        median_app_run_ms: (reconstruction.median_dwell_ms > 0)
+            .then_some(reconstruction.median_dwell_ms),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -899,5 +934,33 @@ mod tests {
         assert_eq!(rec.app_totals.get("dolphin"), Some(&2_000));
         assert_eq!(rec.app_totals.get("kate"), Some(&2_000));
         assert_eq!(rec.system_ui_ms, 2_000);
+    }
+
+    #[test]
+    fn focus_session_metrics_derive_switch_rate_and_median_run() {
+        let rows = vec![
+            span(0, 2_000, "a", None, false),
+            span(2_000, 4_000, "b", None, false),
+        ];
+        let rec = reconstruct_session(0, 4_000, &rows, 0);
+        let reliability = assess_reliability(&rec);
+        let metrics = focus_session_metrics(&rec, &reliability);
+        assert_eq!(metrics.tracked_app_ms, 4_000);
+        assert_eq!(metrics.switch_count, 1);
+        assert_eq!(metrics.switches_per_observed_hour, Some(900.0));
+        assert_eq!(metrics.median_app_run_ms, Some(2_000));
+    }
+
+    #[test]
+    fn focus_session_metrics_ignore_uncertain_switches() {
+        let rows = vec![
+            span(0, 2_000, "a", None, false),
+            span(3_000, 5_000, "b", None, false),
+        ];
+        let rec = reconstruct_session(0, 5_000, &rows, 0);
+        let reliability = assess_reliability(&rec);
+        let metrics = focus_session_metrics(&rec, &reliability);
+        assert_eq!(metrics.switch_count, 0);
+        assert_eq!(metrics.switches_per_observed_hour, Some(0.0));
     }
 }

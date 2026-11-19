@@ -107,98 +107,47 @@ export interface FocusSession {
   driftRunMs: number;
 }
 
-export interface FocusRecord {
+export interface FocusSessionSummary {
   id: number | null;
   start: number;
   end: number;
   plannedMs: number;
-  driftMs: number;
   completed: boolean;
   status: string;
-  updatedAtMs: number | null;
   recovered: boolean;
-  recoveryGapMs: number;
 }
 
-export interface ObservationSpan {
-  startMs: number;
-  endMs: number;
-  appKey: string;
-  display: string;
-  title: string;
-  domain: string | null;
-  afk: boolean;
-}
+export type FocusRecord = FocusSessionSummary;
 
-export interface ApplicationVisit {
-  appKey: string;
-  startMs: number;
-  endMs: number;
-  durationMs: number;
-  title: string;
-}
-
-export interface SessionGap {
-  startMs: number;
-  endMs: number;
-  ms: number;
-  reason: string;
-}
-
-export interface ApplicationTransition {
-  fromApp: string;
-  toApp: string;
-  atMs: number;
-  uncertain: boolean;
-  gapMs: number;
-}
-
-export interface ReliabilityFinding {
-  code: string;
-  severity: string;
-  summary: string;
-  startMs: number | null;
-  endMs: number | null;
-  durationMs: number | null;
-}
-
-export interface ReliabilityAssessment {
-  status: string;
-  coverage: number;
-  observationQuality: number;
-  transitionUncertainty: number;
-  trackingIntegrity: number;
-  dataIntegrity: number;
-  findings: ReliabilityFinding[];
-}
-
-export interface ReconstructedSession {
-  sessionStartMs: number;
-  sessionEndMs: number;
+export interface FocusSessionMetrics {
+  trackedAppMs: number;
   observedMs: number;
-  eligibleObservedMs: number;
-  afkMs: number | null;
-  ambiguousMs: number;
-  systemUiMs: number;
-  untrackedMs: number;
-  uncertainMs: number;
-  recoveryGapMs: number;
-  observations: ObservationSpan[];
-  appTotals: Record<string, number>;
-  appVisits: ApplicationVisit[];
-  transitions: ApplicationTransition[];
-  gaps: SessionGap[];
-  invalidSpanCount: number;
-  dwellTimeMs: number;
-  medianDwellMs: number;
-  averageDwellMs: number;
-  shortVisits: number;
+  coverage: number;
+  switchCount: number;
+  switchesPerObservedHour: number | null;
+  medianAppRunMs: number | null;
+}
+
+export interface FocusSessionBaseline {
+  sampleCount: number;
+  medianSwitchesPerObservedHour: number | null;
+  medianAppRunMs: number | null;
 }
 
 export interface FocusSessionReport {
-  session: FocusRecord;
-  reconstruction: ReconstructedSession;
-  reliability: ReliabilityAssessment;
+  session: FocusSessionSummary;
+  metrics: FocusSessionMetrics;
+  baseline: FocusSessionBaseline;
+}
+
+export interface SwitchHistoryEntry {
+  fromApp: string;
+  fromDisplay: string;
+  toApp: string;
+  toDisplay: string;
+  atMs: number;
+  uncertain: boolean;
+  gapMs: number;
 }
 
 export interface BgSeg {
@@ -258,16 +207,6 @@ export interface Summary {
 
   callMs: number;
   calls: BackgroundItem[];
-}
-
-export interface SwitchHistoryEntry {
-  fromApp: string;
-  fromDisplay: string;
-  toApp: string;
-  toDisplay: string;
-  atMs: number;
-  uncertain: boolean;
-  gapMs: number;
 }
 
 

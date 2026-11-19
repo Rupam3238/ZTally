@@ -114,26 +114,15 @@
   },
   "focusReport": {
     "again": "Another {min} minutes",
-    "actualOfPlanned": "{actual} of {planned}",
-    "appSwitches": "App switches",
-    "appTime": "App time",
+    "clean": "Nothing. A clean session.",
     "completed": "{time}, completed",
-    "details": "Session details",
     "done": "Done",
-    "finishedEarlyBy": "{time} before planned",
     "endedEarly": "{time}, ended early",
     "nothing": "Nothing recorded.",
-    "notEnoughData": "Not enough data",
-    "plannedDuration": "{planned} planned",
-    "topApplications": "Top applications",
-    "typicalAppVisit": "Typical app visit",
-    "title": "Focus session report"
-  },
-  "focusHistory": {
-    "minimumLength": "Minimum session length",
-    "minimumLengthAria": "Minimum session length in minutes",
-    "minutes": "min",
-    "noMatchingSessions": "No sessions meet this duration."
+    "onTask": "on task",
+    "pulledAway": "Pulled away by",
+    "title": "Focus session report",
+    "workedIn": "Worked in"
   },
   "switchHistory": {
     "allTime": "All Time",

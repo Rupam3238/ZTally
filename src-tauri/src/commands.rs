@@ -15,9 +15,43 @@ type R<T> = Result<T, String>;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FocusSessionReport {
-    session: crate::db::FocusRecord,
-    reconstruction: crate::reconstruct::ReconstructedSession,
-    reliability: crate::reconstruct::ReliabilityAssessment,
+    session: FocusSessionSummary,
+    metrics: crate::reconstruct::FocusSessionMetrics,
+    baseline: FocusSessionBaseline,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FocusSessionSummary {
+    id: Option<i64>,
+    start: i64,
+    end: i64,
+    planned_ms: i64,
+    completed: bool,
+    status: String,
+    recovered: bool,
+}
+
+impl From<crate::db::FocusRecord> for FocusSessionSummary {
+    fn from(session: crate::db::FocusRecord) -> Self {
+        Self {
+            id: session.id,
+            start: session.start,
+            end: session.end,
+            planned_ms: session.planned_ms,
+            completed: session.completed,
+            status: session.status,
+            recovered: session.recovered,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FocusSessionBaseline {
+    sample_count: usize,
+    median_switches_per_observed_hour: Option<f64>,
+    median_app_run_ms: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -315,13 +349,19 @@ fn focus_stop(app: AppHandle) -> R<()> {
 }
 
 #[tauri::command]
-fn focus_history(st: State<AppState>, start: i64, end: i64) -> R<Vec<crate::db::FocusRecord>> {
-    st.db.lock().focus_in(start, end)
+fn focus_history(st: State<AppState>, start: i64, end: i64) -> R<Vec<FocusSessionSummary>> {
+    st.db
+        .lock()
+        .focus_in(start, end)
+        .map(|sessions| sessions.into_iter().map(Into::into).collect())
 }
 
 #[tauri::command]
-fn focus_sessions(st: State<AppState>) -> R<Vec<crate::db::FocusRecord>> {
-    st.db.lock().focus_sessions()
+fn focus_sessions(st: State<AppState>) -> R<Vec<FocusSessionSummary>> {
+    st.db
+        .lock()
+        .focus_sessions()
+        .map(|sessions| sessions.into_iter().map(Into::into).collect())
 }
 
 #[tauri::command]
@@ -332,7 +372,65 @@ fn focus_session_report(st: State<AppState>, id: i64) -> R<FocusSessionReport> {
     let spans = db.spans_in(session.start, session.end)?;
     let reconstruction = crate::reconstruct::reconstruct_session(session.start, session.end, &spans, session.recovery_gap_ms);
     let reliability = crate::reconstruct::assess_reliability(&reconstruction);
-    Ok(FocusSessionReport { session, reconstruction, reliability })
+    let metrics = crate::reconstruct::focus_session_metrics(&reconstruction, &reliability);
+    let prior_sessions = db.focus_sessions()?
+        .into_iter()
+        .filter(|candidate| candidate.start < session.start && candidate.end <= session.start && candidate.status != "active");
+    let mut baseline_metrics = Vec::new();
+    for candidate in prior_sessions {
+        if baseline_metrics.len() == 5 {
+            break;
+        }
+        let rows = db.spans_in(candidate.start, candidate.end)?;
+        let reconstructed = crate::reconstruct::reconstruct_session(
+            candidate.start,
+            candidate.end,
+            &rows,
+            candidate.recovery_gap_ms,
+        );
+        let assessed = crate::reconstruct::assess_reliability(&reconstructed);
+        let prior = crate::reconstruct::focus_session_metrics(&reconstructed, &assessed);
+        if prior.tracked_app_ms > 0 && prior.coverage >= 0.6 {
+            baseline_metrics.push(prior);
+        }
+    }
+    let baseline = FocusSessionBaseline {
+        sample_count: baseline_metrics.len(),
+        median_switches_per_observed_hour: median_f64(
+            baseline_metrics.iter().filter_map(|m| m.switches_per_observed_hour).collect(),
+        ),
+        median_app_run_ms: median_i64(
+            baseline_metrics.iter().filter_map(|m| m.median_app_run_ms).collect(),
+        ),
+    };
+    Ok(FocusSessionReport { session: session.into(), metrics, baseline })
+}
+
+fn median_i64(mut values: Vec<i64>) -> Option<i64> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_unstable();
+    let middle = values.len() / 2;
+    Some(if values.len() % 2 == 0 {
+        values[middle - 1] / 2 + values[middle] / 2
+            + (values[middle - 1] % 2 + values[middle] % 2) / 2
+    } else {
+        values[middle]
+    })
+}
+
+fn median_f64(mut values: Vec<f64>) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_by(f64::total_cmp);
+    let middle = values.len() / 2;
+    Some(if values.len() % 2 == 0 {
+        (values[middle - 1] + values[middle]) / 2.0
+    } else {
+        values[middle]
+    })
 }
 
 #[tauri::command]
@@ -551,5 +649,52 @@ mod tests {
         let (switches, eligible_ms) = super::switch_metrics(&rows, &[(0, 1_000), (5_000, 6_000)]);
         assert_eq!(switches, 0);
         assert_eq!(eligible_ms, 2_000);
+    }
+
+    #[test]
+    fn medians_handle_odd_even_and_empty_samples() {
+        assert_eq!(super::median_i64(vec![9, 1, 5]), Some(5));
+        assert_eq!(super::median_i64(vec![9, 1, 5, 3]), Some(4));
+        assert_eq!(super::median_i64(vec![]), None);
+        assert_eq!(super::median_f64(vec![9.0, 1.0, 5.0]), Some(5.0));
+        assert_eq!(super::median_f64(vec![9.0, 1.0, 5.0, 3.0]), Some(4.0));
+        assert_eq!(super::median_f64(vec![]), None);
+    }
+
+    #[test]
+    fn focus_report_serializes_only_processed_metrics() {
+        let report = super::FocusSessionReport {
+            session: super::FocusSessionSummary {
+                id: Some(1),
+                start: 10,
+                end: 20,
+                planned_ms: 10,
+                completed: true,
+                status: "completed".into(),
+                recovered: false,
+            },
+            metrics: crate::reconstruct::FocusSessionMetrics {
+                tracked_app_ms: 10,
+                observed_ms: 10,
+                coverage: 1.0,
+                switch_count: 0,
+                switches_per_observed_hour: Some(0.0),
+                median_app_run_ms: Some(10),
+            },
+            baseline: super::FocusSessionBaseline {
+                sample_count: 0,
+                median_switches_per_observed_hour: None,
+                median_app_run_ms: None,
+            },
+        };
+        let value = serde_json::to_value(report).unwrap();
+        assert!(value.get("metrics").is_some());
+        for raw_field in ["observations", "appTotals", "appVisits", "transitions", "gaps"] {
+            assert!(value.get(raw_field).is_none());
+            assert!(value["metrics"].get(raw_field).is_none());
+        }
+        for raw_field in ["driftMs", "updatedAtMs", "recoveryGapMs"] {
+            assert!(value["session"].get(raw_field).is_none());
+        }
     }
 }
