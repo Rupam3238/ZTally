@@ -34,8 +34,9 @@ pub trait ActiveWindowSource: Send {
 }
 
 pub trait IdleSource: Send {
-
     fn idle_ms(&mut self) -> Option<u64>;
+
+    fn set_threshold_ms(&mut self, _threshold_ms: u64) {}
 }
 
 
@@ -646,8 +647,9 @@ pub fn run(
         let now = chrono::Utc::now().timestamp_millis();
         let paused = *paused_until.lock() > now;
         let window = if paused { None } else { backend.window.sample() };
-        let idle_ms = backend.idle.idle_ms();
         let st = settings.lock().clone();
+        backend.idle.set_threshold_ms(st.idle_threshold_s.max(30).saturating_mul(1_000));
+        let idle_ms = backend.idle.idle_ms();
         engine.lock().tick(Observation { now, window, idle_ms, paused }, &st);
         if now - last_audio >= 5_000 {
             last_audio = now;

@@ -132,15 +132,7 @@ Also: a **Categories** view with a "sort inbox" of uncategorised apps and sites,
 
 **Shortcuts:** <kbd>Ctrl</kbd>+<kbd>K</kbd> command palette · <kbd>←</kbd> / <kbd>→</kbd> previous / next day or week · <kbd>T</kbd> today · <kbd>1</kbd>–<kbd>7</kbd> views. Hover the sidebar for labels; the window has its own titlebar (drag it, double-click to maximise).
 
-### Focus-session measures and limits
-
-Focus reports show tracked app-window time, the rate of *confident* changes between foreground apps per tracked hour, the median duration of a same-app run, and the share of the session covered by observations. A personal reference is the median of up to five recent earlier sessions with at least 60% observation coverage; comparisons are withheld until at least three such sessions exist. A switch rate at least 25% higher alongside a same-app run at least 25% shorter is a practical UI flag, not a threshold established by the cited research. It prompts a small personal experiment, not a universal target or a diagnosis.
-
-These are activity proxies, **not measurements of attention, task progress, or productivity**. An app change may or may not be a task switch, and this tracker cannot observe attention residue, intent, or interruption cause. KDE desktop-shell windows are excluded from app-run and switch calculations. Interpretation is informed by:
-
-- Monsell (2003), [“Task switching”](https://doi.org/10.1016/S1364-6613(03)00028-7), *Trends in Cognitive Sciences* 7(3), 134–140.
-- Leroy (2009), [“Why is it so hard to do my work? The challenge of attention residue when switching between work tasks”](https://doi.org/10.1016/j.obhdp.2009.04.002), *Organizational Behavior and Human Decision Processes* 109(2), 168–181.
-- Mark, Gudith & Klocke (2008), [“The cost of interrupted work: more speed and stress”](https://doi.org/10.1145/1357054.1357072), *Proceedings of CHI*, 107–110.
+Focus history summarizes app-window time, switches, the median time spent in one app, and the median from earlier sessions.
 
 ## Privacy
 
@@ -156,7 +148,7 @@ These are activity proxies, **not measurements of attention, task progress, or p
 |---|---|---|
 | Windows 10/11 | `GetForegroundWindow` + `QueryFullProcessImageNameW` | `GetLastInputInfo` |
 | X11 (any desktop) | EWMH `_NET_ACTIVE_WINDOW` | XScreenSaver extension |
-| KDE Plasma (Wayland) | a bundled KWin script, loaded automatically | `org.freedesktop.ScreenSaver` |
+| KDE Plasma (Wayland) | a bundled KWin script, loaded automatically | Wayland `ext-idle-notify-v1`, with ScreenSaver D-Bus and logind fallbacks |
 | GNOME (Wayland) · *experimental* | a small bundled Shell extension (one-click install, then log out/in) | Mutter IdleMonitor |
 | Sway · *experimental* | i3-compatible IPC | logind idle hint (needs swayidle) |
 | Hyprland · *experimental* | Hyprland IPC socket | logind idle hint (needs hypridle) |

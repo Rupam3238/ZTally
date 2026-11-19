@@ -671,6 +671,7 @@ mod tests {
                 start: 10,
                 end: 20,
                 planned_ms: 10,
+                drift_ms: 0,
                 completed: true,
                 status: "completed".into(),
                 recovered: false,

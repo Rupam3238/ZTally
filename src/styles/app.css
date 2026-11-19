@@ -2584,6 +2584,179 @@ select optgroup {
   -webkit-user-select: text;
 }
 
+.focus-history-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 250px) minmax(0, 1fr);
+  align-content: start;
+  align-items: start;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.focus-history-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  max-height: calc(100vh - 150px);
+  min-width: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.focus-session-button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(12px * var(--rs, 1));
+  cursor: pointer;
+}
+
+.focus-session-button:hover,
+.focus-session-button.active {
+  border-color: var(--brand);
+  background: var(--surface-2);
+}
+
+.focus-session-button-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.focus-session-button-top span,
+.focus-session-button-time,
+.focus-session-button-duration,
+.focus-session-status {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.focus-session-button-top span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-session-detail {
+  display: grid;
+  align-content: start;
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.focus-session-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.focus-session-heading h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+.focus-session-kicker {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.focus-session-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.focus-session-stat {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(12px * var(--rs, 1));
+}
+
+.focus-session-stat > div {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.focus-session-stat strong {
+  font-size: 19px;
+  line-height: 1.15;
+}
+
+.focus-session-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+
+.focus-session-panel {
+  min-width: 0;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(12px * var(--rs, 1));
+}
+
+.focus-session-panel h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.focus-session-metric {
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.focus-session-metric > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.focus-session-metric span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.focus-session-metric strong {
+  flex: none;
+  font-size: 12px;
+}
+
+.focus-session-baseline {
+  display: grid;
+  gap: 8px;
+}
+
+.focus-session-baseline span,
+.focus-session-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.focus-session-baseline strong {
+  font-size: 13px;
+}
+
 .focus-history-filter {
   display: flex;
   align-items: center;
@@ -2614,6 +2787,20 @@ select optgroup {
   font-size: 16px;
   line-height: 1.2;
   letter-spacing: 0;
+}
+
+.fr-baseline {
+  display: grid;
+  gap: 6px;
+}
+
+.fr-baseline span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fr-baseline strong {
+  font-size: 13px;
 }
 
 .switch-history-modal {
@@ -3342,6 +3529,21 @@ button.ycell:not(:disabled):hover {
 @media (max-width: 520px) {
   .fr-metrics {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .focus-history-layout {
+    grid-template-columns: minmax(180px, 210px) minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .focus-session-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .focus-session-panels {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
