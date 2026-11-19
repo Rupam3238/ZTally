@@ -27,6 +27,7 @@ struct FocusSessionSummary {
     start: i64,
     end: i64,
     planned_ms: i64,
+    drift_ms: i64,
     completed: bool,
     status: String,
     recovered: bool,
@@ -39,6 +40,7 @@ impl From<crate::db::FocusRecord> for FocusSessionSummary {
             start: session.start,
             end: session.end,
             planned_ms: session.planned_ms,
+            drift_ms: session.drift_ms,
             completed: session.completed,
             status: session.status,
             recovered: session.recovered,
@@ -693,7 +695,8 @@ mod tests {
             assert!(value.get(raw_field).is_none());
             assert!(value["metrics"].get(raw_field).is_none());
         }
-        for raw_field in ["driftMs", "updatedAtMs", "recoveryGapMs"] {
+        assert_eq!(value["session"]["driftMs"], 0);
+        for raw_field in ["updatedAtMs", "recoveryGapMs"] {
             assert!(value["session"].get(raw_field).is_none());
         }
     }

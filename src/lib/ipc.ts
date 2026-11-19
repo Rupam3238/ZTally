@@ -112,6 +112,7 @@ export interface FocusSessionSummary {
   start: number;
   end: number;
   plannedMs: number;
+  driftMs: number;
   completed: boolean;
   status: string;
   recovered: boolean;
